@@ -459,7 +459,7 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(body) == 0 {
-		http.Error(w, "body is empty", http.StatusUnprocessableEntity)
+		http.Error(w, "body is empty", http.StatusBadRequest)
 		return
 	}
 
@@ -517,7 +517,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	log.Printf("%+v, %+v", mediaType, params)
 	if err != nil {
-		http.Error(w, "cannot parse content-type", http.StatusUnprocessableEntity)
+		http.Error(w, "cannot parse content-type", http.StatusBadRequest)
 		return
 	}
 
@@ -529,13 +529,13 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			http.Error(w, "cannot get part", http.StatusUnprocessableEntity)
+			http.Error(w, "cannot get part", http.StatusBadRequest)
 			return
 		}
 
 		mediaType, params, err := mime.ParseMediaType(p.Header.Get("Content-Type"))
 		if err != nil {
-			http.Error(w, "cannot parse part media type", http.StatusUnprocessableEntity)
+			http.Error(w, "cannot parse part media type", http.StatusBadRequest)
 			return
 		}
 		log.Println(mediaType, params)
@@ -543,7 +543,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		fname := time.Now().Format("20060102150405-") + p.FileName()
 		f, err := os.Create(config.WorkDir + fname)
 		if err != nil {
-			http.Error(w, "cannot save file", http.StatusUnprocessableEntity)
+			http.Error(w, "cannot save file", http.StatusBadRequest)
 			return
 		}
 		io.Copy(f, p)
