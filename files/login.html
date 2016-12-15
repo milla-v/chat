@@ -1,0 +1,31 @@
+<html>
+<head>
+<title>Login to chat</title>
+<meta name="viewport" content="width=device-width">
+</head>
+<body>
+
+<h3>Log into chat</h3>
+<form method="POST" action="/auth">
+username:<br>
+<input name="user"/><br><br>
+password:<br>
+<input type="password" name="password"/><br>
+<br>
+<button type="submit">Login</button>
+<input type="hidden" name="redirect" value="1"/><br>
+</form>
+<br><br>
+
+<h3>Register</h3>
+<form method="POST" action="/register">
+username:<br>
+<input name="user"/><br><br>
+email:<br>
+<input type="email" name="email"/><br>
+<br>
+<button type="submit">Register</button>
+</form>
+
+</body>
+</html>

@@ -1,0 +1,28 @@
+#!/bin/sh
+
+# PROVIDE: chatd
+# REQUIRE: DAEMON
+# BEFORE:  LOGIN
+# KEYWORD: nojail shutdown
+
+. /etc/rc.subr
+
+name="chatd"
+rcvar="chat_enable"
+start_cmd="chatd_start"
+stop_cmd="chatd_stop"
+
+chatd_start()
+{
+	cd /usr/local/www/wet
+	nohup /usr/local/www/wet/chatd -http wet.voilokov.com:8085 >>/var/log/chatd.log 2>&1 &
+	echo $! >/var/run/chatd.pid
+}
+
+chatd_stop()
+{
+	pkill chatd
+}
+
+load_rc_config $name
+run_rc_command "$1"

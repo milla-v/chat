@@ -1,0 +1,10 @@
+work/
+bin/
+pkg/
+*.gz
+*.key
+*.pem
+chatd-*
+cookies.txt
+auth/users_private.go
+-deploy
