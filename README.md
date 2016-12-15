@@ -18,7 +18,7 @@ Goals and features
 Get and build chatd, chatc, ocean
 ---------------------------------
 
-	go install github.com/milla-v/chat/...
+	go get github.com/milla-v/chat/...
 
 Read documentation
 ------------------
