@@ -6,7 +6,7 @@ VERSION=$(git describe --long --tags)
 DATE=$(date +%Y-%m-%dT%H:%M:%S%z)
 
 # build for cloud server
-GOOS=freebsd GOARCH=amd64 go build -ldflags "-X main.version=$VERSION -X main.date=$DATE" -o chatd-freebsd github.com/milla-v/chat/cmd/chatd
+GOOS=freebsd GOARCH=amd64 go build -ldflags "-X service.version=$VERSION -X service.date=$DATE" -o chatd-freebsd github.com/milla-v/chat/cmd/chatd
 
 # create destination directory structure
 rm -rf dist~
