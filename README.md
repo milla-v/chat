@@ -34,7 +34,7 @@ Open doc
 Run server
 ------------
 
-    ${GOROOT}/chatd -http=localhost:8085
+    chatd
 
 Open web client
 
