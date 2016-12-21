@@ -70,6 +70,12 @@ func init() {
 		panic(configFile + " config file created. Edit it to set credentials")
 	}
 
+	LoadConfig(configFile)
+}
+
+func LoadConfig(fname string) {
+	configFile = fname
+
 	f, err := os.Open(configFile)
 	if err != nil {
 		panic(err)

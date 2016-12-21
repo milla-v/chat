@@ -5,7 +5,7 @@
 //	chatc [flags]
 //
 // The flags are:
-//	-cred=auth~.txt  Specify credentials file in format host:port:user:password
+//	-c FILENAME -- Specify config file
 //
 // Command runs simple chat listener.
 //
@@ -16,8 +16,8 @@
 //
 // New flags:
 //
-//	-t "test"    Send plain text
-//	-f file.txt  Send file as an attachment
+//	-t "TEXT"   -- Send plain text
+//	-f FILENAME -- Send file as an attachment
 //
 package main
 
@@ -26,6 +26,7 @@ import (
 	"github.com/milla-v/chat/client"
 )
 
+var useConfig = flag.String("c", "", "Specify config")
 var sendFile = flag.String("f", "", "File to send to the chat")
 var sendText = flag.String("t", "", "Text to send to the chat")
 var printConfig = flag.Bool("g", false, "Print config")
@@ -33,11 +34,15 @@ var printConfig = flag.Bool("g", false, "Print config")
 func main() {
 	flag.Parse()
 	
+	if *useConfig != "" {
+		client.LoadConfig(*useConfig)
+	}
+
 	if *printConfig {
 		client.PrintConfig()
 		return
 	}
-	
+
 	if *sendText != "" {
 		if err := client.SendText(*sendText); err != nil {
 			panic(err)
