@@ -26,25 +26,31 @@ import (
 	"github.com/milla-v/chat/client"
 )
 
-var sendfile = flag.String("f", "", "File to send to the chat")
-var sendtext = flag.String("t", "", "Text to send to the chat")
+var sendFile = flag.String("f", "", "File to send to the chat")
+var sendText = flag.String("t", "", "Text to send to the chat")
+var printConfig = flag.Bool("g", false, "Print config")
 
 func main() {
 	flag.Parse()
 	
-	if *sendtext != "" {
-		if err := client.SendText(*sendtext); err != nil {
+	if *printConfig {
+		client.PrintConfig()
+		return
+	}
+	
+	if *sendText != "" {
+		if err := client.SendText(*sendText); err != nil {
 			panic(err)
 		}
 	}
 
-	if *sendfile != "" {
-		if err := client.SendFile(*sendfile); err != nil {
+	if *sendFile != "" {
+		if err := client.SendFile(*sendFile); err != nil {
 			panic(err)
 		}
 	}
 	
-	if *sendtext != "" || *sendfile != "" {
+	if *sendText != "" || *sendFile != "" {
 		return
 	}
 

@@ -3,17 +3,20 @@
 package client
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
-	"time"
-	"io/ioutil"
+	"path/filepath"
 	"strings"
-	"errors"
+	"time"
 
 	"golang.org/x/net/websocket"
 
@@ -21,8 +24,8 @@ import (
 )
 
 type Config struct {
-	Address string  `json:"address"`
-	User string     `json:"user"`
+	Address  string `json:"address"`
+	User     string `json:"user"`
 	Password string `json:"password"`
 }
 
@@ -57,7 +60,7 @@ func init() {
 
 	_, err = os.Stat(configFile)
 	if os.IsNotExist(err) {
-		buf, err :=json.MarshalIndent(&cfg, "    ", "")
+		buf, err := json.MarshalIndent(&cfg, "    ", "")
 		if err != nil {
 			panic(err)
 		}
@@ -66,7 +69,7 @@ func init() {
 		}
 		panic(configFile + " config file created. Edit it to set credentials")
 	}
-	
+
 	f, err := os.Open(configFile)
 	if err != nil {
 		panic(err)
@@ -76,6 +79,15 @@ func init() {
 	if err := dec.Decode(&cfg); err != nil {
 		panic(err)
 	}
+}
+
+func PrintConfig() {
+	fmt.Println("cache dir:", cacheDir)
+	fmt.Println("config file:", configFile)
+	fmt.Println("loaded config:")
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "    ")
+	enc.Encode(&cfg)
 }
 
 func read() (*prot.Envelope, error) {
@@ -102,7 +114,7 @@ func printMessage(e prot.Envelope) {
 	if e.Message != nil {
 		fmt.Printf("%s %s%s%s %s\n",
 			e.Message.Ts.Format("15:04"),
-			"\x1b[" + e.Message.ColorXterm256 + "m", e.Message.Name, "\x1b[m",
+			"\x1b["+e.Message.ColorXterm256+"m", e.Message.Name, "\x1b[m",
 			e.Message.Text)
 	}
 }
@@ -138,7 +150,7 @@ func getAuthToken() (string, error) {
 	token := resp.Header.Get("Token")
 	err = ioutil.WriteFile(tokenFile, []byte(token), 0600)
 	if err != nil {
-		return "", nil	
+		return "", nil
 	}
 
 	return token, err
@@ -150,7 +162,7 @@ func connect() error {
 		os.Remove(tokenFile)
 		return err
 	}
-	
+
 	config, err := websocket.NewConfig("wss://"+cfg.Address+"/ws", "https://"+cfg.Address)
 	if err != nil {
 		return err
@@ -214,7 +226,7 @@ func SendText(message string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	req.Header.Add("ContentType", "text/plain")
 	req.Header.Add("Token", token)
 
@@ -222,7 +234,7 @@ func SendText(message string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(os.Stderr, resp.Body)
@@ -235,22 +247,60 @@ func SendText(message string) error {
 
 // Send sends a file to the chat.
 func SendFile(fname string) error {
+	token, err := getAuthToken()
+	if err != nil {
+		os.Remove(tokenFile)
+		return err
+	}
+
+	var body bytes.Buffer
+
+	f, err := os.Open(fname)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	basename := filepath.Base(fname)
+	w := multipart.NewWriter(&body)
+	fw, err := w.CreateFormFile("file", basename)
+	if err != nil {
+		panic(err)
+	}
+
+	if _, err = io.Copy(fw, f); err != nil {
+		panic(err)
+	}
+	w.Close()
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
+	req, err := http.NewRequest("POST", "https://"+cfg.Address+"/upload", &body)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Token", token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(os.Stderr, resp.Body)
+		return errors.New("status: " + resp.Status)
+	}
+
+	io.Copy(os.Stdout, resp.Body)
+
 	return nil
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
