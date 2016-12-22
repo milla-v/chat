@@ -221,7 +221,10 @@ func SendText(message string) error {
 	token, err := getAuthToken()
 	if err != nil {
 		os.Remove(tokenFile)
-		return err
+		token, err = getAuthToken()
+		if err != nil {
+			return err
+		}
 	}
 
 	r := strings.NewReader(message)
@@ -245,6 +248,11 @@ func SendText(message string) error {
 	}
 
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return SendText(message)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(os.Stderr, resp.Body)
 		return errors.New("status: " + resp.Status)
@@ -259,7 +267,10 @@ func SendFile(fname string) error {
 	token, err := getAuthToken()
 	if err != nil {
 		os.Remove(tokenFile)
-		return err
+		token, err = getAuthToken()
+		if err != nil {
+			return err
+		}
 	}
 
 	var body bytes.Buffer
@@ -301,6 +312,10 @@ func SendFile(fname string) error {
 	}
 
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return SendFile(fname)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(os.Stderr, resp.Body)
 		return errors.New("status: " + resp.Status)
