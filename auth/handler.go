@@ -197,4 +197,9 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintln(w, "User "+user+" created. Password is "+password)
 	//http.Redirect(w, r, "/auth?user="+user+"&password="+password+"&redir=1", http.StatusFound)
+
+	err = os.Remove(fname)
+	if err != nil {
+		log.Println(err)
+	}
 }
