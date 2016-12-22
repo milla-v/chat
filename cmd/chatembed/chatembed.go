@@ -7,9 +7,9 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
-	"fmt"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 
 	fmt.Fprintln(f, "package service")
 	fmt.Fprintln(f, "const (")
-	fmt.Fprintf(f, "index_html = `%s`\n\n", string(main))
-	fmt.Fprintf(f, "login_html = `%s`\n\n", string(toc))
+	fmt.Fprintf(f, "indexHTML = `%s`\n\n", string(main))
+	fmt.Fprintf(f, "loginHTML = `%s`\n\n", string(toc))
 	fmt.Fprintln(f, ")")
 }

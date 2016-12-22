@@ -1,6 +1,7 @@
 package service
+
 const (
-index_html = `<html>
+	indexHTML = `<html>
 <head>
 <title>Chat</title>
 <meta name="viewport" content="width=device-width">
@@ -26,7 +27,7 @@ function notify(s)
 		var notification = new Notification(s);
 		return;
 	}
-	
+
 	if (Notification.permission !== 'denied') {
 		Notification.requestPermission(function (permission) {
 			if (permission === "granted") {
@@ -124,7 +125,7 @@ function keypress(event)
 {
 	if (event.target === textbox && event.keyCode === 13) {
 		sendText();
-		event.returnValue = false;		
+		event.returnValue = false;
 	}
 }
 
@@ -197,7 +198,7 @@ version: {version}, date: {date}<br>
 
 `
 
-login_html = `<html>
+	loginHTML = `<html>
 <head>
 <title>Login to chat</title>
 <meta name="viewport" content="width=device-width">
@@ -229,5 +230,4 @@ email:<br>
 </body>
 </html>
 `
-
 )

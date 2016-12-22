@@ -23,6 +23,7 @@ import (
 	"github.com/milla-v/chat/prot"
 )
 
+// Config is a client config.
 type Config struct {
 	Address  string `json:"address"`
 	User     string `json:"user"`
@@ -73,6 +74,7 @@ func init() {
 	LoadConfig(configFile)
 }
 
+// LoadConfig loads custom config file.
 func LoadConfig(fname string) {
 	configFile = fname
 
@@ -87,6 +89,7 @@ func LoadConfig(fname string) {
 	}
 }
 
+// PrintConfig prints loaded config to stdout.
 func PrintConfig() {
 	fmt.Println("cache dir:", cacheDir)
 	fmt.Println("config file:", configFile)
@@ -213,7 +216,7 @@ func Listen() {
 	}
 }
 
-// Send sends a plain text message to the chat.
+// SendText sends a plain text message to the chat.
 func SendText(message string) error {
 	token, err := getAuthToken()
 	if err != nil {
@@ -251,7 +254,7 @@ func SendText(message string) error {
 	return nil
 }
 
-// Send sends a file to the chat.
+// SendFile sends a file to the chat.
 func SendFile(fname string) error {
 	token, err := getAuthToken()
 	if err != nil {
@@ -307,7 +310,3 @@ func SendFile(fname string) error {
 
 	return nil
 }
-
-
-
-

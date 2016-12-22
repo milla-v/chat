@@ -167,13 +167,13 @@ func rgb2xterm(rgb string) string {
 
 	for _, v := range midpoints {
 		if v < r {
-			rx += 1
+			rx++
 		}
 		if v < g {
-			gx += 1
+			gx++
 		}
 		if v < b {
-			bx += 1
+			bx++
 		}
 	}
 
@@ -211,7 +211,7 @@ func sendToAllClients(from, text string) {
 	re := regexp.MustCompile("https?://[^ ]+")
 	text = re.ReplaceAllString(text, "<a target=\"chaturls\" href=\"$0\">$0</a>")
 	id := msg.Ts.Format("m-20060102-150405.000000")
-	msg.Html = fmt.Sprintf("<div style=\"background-color: %s\" class=\"msg\">%s %s: %s</div>",
+	msg.HTML = fmt.Sprintf("<div style=\"background-color: %s\" class=\"msg\">%s %s: %s</div>",
 		msg.Color, msg.Ts.Format("15:04"), from, text)
 
 	for _, cli := range clients {
@@ -219,15 +219,15 @@ func sendToAllClients(from, text string) {
 			continue
 		}
 
-		if from != "doorman" && from != cli.ua.Name {
+		if from != cli.ua.Name {
 			if len(text) > 40 {
 				msg.Notification = text[:40] + "..."
 			} else {
 				msg.Notification = text + " •"
 			}
-		} else if from != "doorman" {
+		} else {
 			msg.Notification = ""
-			msg.Html = fmt.Sprintf("<div id=\"%s\" style=\"background-color: %s\" class=\"msg\">%s %s: <span>%s</span></div>",
+			msg.HTML = fmt.Sprintf("<div id=\"%s\" style=\"background-color: %s\" class=\"msg\">%s %s: <span>%s</span></div>",
 				id, msg.Color, msg.Ts.Format("15:04"), from, text)
 		}
 
@@ -240,8 +240,8 @@ func sendToAllClients(from, text string) {
 	if from != "doorman" {
 		e.Message.Notification = ""
 		history = append(history, e)
-		fmt.Fprintln(historyFile, msg.Html)
-		recentHistory += msg.Html + "\n"
+		fmt.Fprintln(historyFile, msg.HTML)
+		recentHistory += msg.HTML + "\n"
 	}
 }
 
@@ -255,7 +255,7 @@ func pingClients() {
 			log.Printf("recent pong: %s\n", cli.ua.Name)
 			continue
 		}
-		
+
 		if time.Since(cli.lastPongTime) > time.Second*180 {
 			log.Printf("no pong for 180 sec, disconnecting %s", cli.ua.Name)
 			disconnectChan <- cli
@@ -290,7 +290,7 @@ func sendRoster(cli *client) {
 		text += cli.ua.Name + "<br>\n"
 	}
 
-	e.Roster.Html = text
+	e.Roster.HTML = text
 
 	log.Printf("sending roster: %+v", e)
 
@@ -363,7 +363,7 @@ func emailRecentHistory() {
 	if len(recentHistory) == 0 {
 		return
 	}
-	
+
 	var b bytes.Buffer
 
 	mwr := multipart.NewWriter(&b)
@@ -392,7 +392,7 @@ func emailRecentHistory() {
 func workerRoutine() {
 	for {
 		select {
-		case <- oneMinuteTicker.C:
+		case <-oneMinuteTicker.C:
 			pingClients()
 			emailRecentHistory()
 		case cli := <-connectChan:
@@ -429,8 +429,8 @@ func generatePage(source, fname string) {
 }
 
 func generatePages() {
-	generatePage(index_html, "index.html")
-	generatePage(login_html, "login.html")
+	generatePage(indexHTML, "index.html")
+	generatePage(loginHTML, "login.html")
 }
 
 func messageReceiver(w http.ResponseWriter, r *http.Request) {
@@ -441,7 +441,7 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 
 	token, err := getToken(r)
 	if err != nil {
-		http.Error(w, "no token " + err.Error(), http.StatusUnauthorized)
+		http.Error(w, "no token "+err.Error(), http.StatusUnauthorized)
 		return
 	}
 
@@ -502,7 +502,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	token, err := getToken(r)
 	if err != nil {
-		http.Error(w, "no token " + err.Error(), http.StatusUnauthorized)
+		http.Error(w, "no token "+err.Error(), http.StatusUnauthorized)
 		return
 	}
 
@@ -565,7 +565,7 @@ func initDir() {
 	if !os.IsNotExist(err) {
 		return
 	}
-	
+
 	if err := os.MkdirAll(cfg.WorkDir, 0777); err != nil {
 		panic(err)
 	}
@@ -574,20 +574,18 @@ func initDir() {
 func ensureCertificates() {
 	cfname := cfg.WorkDir + certFile
 	kfname := cfg.WorkDir + keyFile
-	keyExists := false
-	certExists := false
 
 	_, err := os.Stat(kfname)
-	keyExists = !os.IsNotExist(err)
+	keyExists := !os.IsNotExist(err)
 
 	_, err = os.Stat(cfname)
-	certExists = !os.IsNotExist(err)
-	
+	certExists := !os.IsNotExist(err)
+
 	if keyExists && certExists {
 		log.Println("key and cert exist")
 		return
 	}
-	
+
 	log.Println("generating", kfname)
 	cmd := exec.Command("openssl", "genrsa", "-out", kfname, "2048")
 	out, err := cmd.CombinedOutput()
@@ -596,7 +594,7 @@ func ensureCertificates() {
 		panic(err)
 	}
 	log.Println("key generated")
-	
+
 	log.Println("generating", cfname)
 	cmd = exec.Command("openssl", "req", "-new", "-x509", "-sha256",
 		"-key", kfname, "-out", cfname,
@@ -619,21 +617,22 @@ func Run() {
 	ensureCertificates()
 
 	log.Printf("chat version: %s, date: %s\n", version, date)
-	log.Println("starting server on https://"+cfg.Address+"/")
+	log.Println("starting server on https://" + cfg.Address + "/")
 
 	connectChan = make(chan *client)
 	connectedChan = make(chan *client, 100)
 	disconnectChan = make(chan *client, 100)
 	broadcastChan = make(chan *message, 100)
-	historyFile, err = os.OpenFile(cfg.WorkDir + "history.html", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	historyFile, err = os.OpenFile(cfg.WorkDir+"history.html", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		panic(err)
 	}
 
+	auth.WorkDir = cfg.WorkDir
 	http.HandleFunc("/", createFileServer())
 	http.Handle("/ws", websocket.Handler(onWebsocketConnection))
 	http.HandleFunc("/m", messageReceiver)
-	http.HandleFunc("/auth", auth.AuthHandler)
+	http.HandleFunc("/auth", auth.AuthenticateHandler)
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/register", auth.RegisterHandler)
 	http.HandleFunc("/create", auth.CreateHandler)

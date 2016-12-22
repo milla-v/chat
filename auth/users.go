@@ -10,11 +10,11 @@ import (
 	"strings"
 )
 
-// User authentication record
+// UserAuth is a authentication record
 type UserAuth struct {
-	Name string
+	Name     string
 	Password string
-	Token string    // session token
+	Token    string // session token
 }
 
 var list []*UserAuth
@@ -43,7 +43,7 @@ func GetAuthUser(token string) (user *UserAuth, err error) {
 			user = ua
 		}
 	}
-	
+
 	if user != nil {
 		return user, nil
 	}
@@ -69,7 +69,7 @@ func login(name, password string) (*UserAuth, error) {
 		return list[idx], nil
 	}
 
-	fname := WorkDir+"user-" + name + ".txt"
+	fname := WorkDir + "user-" + name + ".txt"
 	bytes, err := ioutil.ReadFile(fname)
 	if err != nil {
 		log.Println(err)
@@ -81,7 +81,7 @@ func login(name, password string) (*UserAuth, error) {
 		log.Println(err)
 		return nil, errors.New("broken user profile")
 	}
-	
+
 	if name != fields[0] || password != fields[1] {
 		log.Println(err)
 		return nil, errors.New("wrong user name or password")
@@ -94,9 +94,9 @@ func login(name, password string) (*UserAuth, error) {
 	}
 
 	ua := &UserAuth{
-		Name: name,
+		Name:     name,
 		Password: password,
-		Token: token,
+		Token:    token,
 	}
 
 	list = append(list, ua)

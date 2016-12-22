@@ -5,28 +5,31 @@ import (
 	"time"
 )
 
+// Ping is a client ping message
 type Ping struct {
-	Timestamp time.Time `json:"ts"` // ping timestamp
-	Ping      int `json:"ping"`     // server should set incremental ping number
-	Pong      int `json:"pong"`     // client should respond with the same number
+	Timestamp time.Time `json:"ts"`   // ping timestamp
+	Ping      int       `json:"ping"` // server should set incremental ping number
+	Pong      int       `json:"pong"` // client should respond with the same number
 }
 
+// Message is a conversation message
 type Message struct {
 	Ts            time.Time `json:"ts"`             // timestamp
 	Name          string    `json:"name"`           // username
 	Text          string    `json:"text"`           // plain text for console clients
-	Html          string    `json:"html"`           // html text for browsers
+	HTML          string    `json:"html"`           // html text for browsers
 	Notification  string    `json:"notification"`   // plain notification for browsers
 	Color         string    `json:"color"`          // RGB color
 	ColorXterm256 string    `json:"color_xterm256"` // xterm color number suitable for \033[%sm formatting
 }
 
+// Roster is a list of online users
 type Roster struct {
-	Ts            time.Time `json:"ts"`             // timestamp
-	Html          string    `json:"html"`           // html text for browsers
+	Ts   time.Time `json:"ts"`   // timestamp
+	HTML string    `json:"html"` // html text for browsers
 }
 
-// Top level communication structure. Includes all another submessages.
+// Envelope is a top level communication structure. Includes all another submessages.
 type Envelope struct {
 	Message *Message `json:"message,omitempty"` // conversation message
 	Ping    *Ping    `json:"ping,omitempty"`    // ping message

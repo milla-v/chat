@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/base32"
 	"testing"
+
 	"golang.org/x/crypto/scrypt"
 )
 
@@ -19,7 +20,7 @@ func TestGenPassword(t *testing.T) {
 	if err != nil {
 		t.FailNow()
 	}
-	salted_password := base32.StdEncoding.EncodeToString(dk)
+	saltedPassword := base32.StdEncoding.EncodeToString(dk)
 
-	println(salt, len(salt), salted_password, len(salted_password))
+	println(salt, len(salt), saltedPassword, len(saltedPassword))
 }

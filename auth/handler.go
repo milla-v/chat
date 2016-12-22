@@ -1,23 +1,24 @@
 package auth
 
 import (
-	"net/http"
-	"time"
-	"fmt"
 	"encoding/base32"
+	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
-	"io/ioutil"
+	"time"
 )
 
+// WorkDir contains working directory
 var WorkDir string
 
-// AuthHandler gets user, password, redirect parameters from request and logs in the user.
+// AuthenticateHandler gets user, password, redirect parameters from request and logs in the user.
 // Response has Token session cookie.
 // If redirect=1 redirects to /index.html.
-func AuthHandler(w http.ResponseWriter, r *http.Request) {
+func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	var user, password, redir string
 
 	if r.Method == "POST" {
@@ -41,12 +42,12 @@ func AuthHandler(w http.ResponseWriter, r *http.Request) {
 
 	ua, err := login(user, password)
 	if err != nil {
-		http.Error(w, "auth: " + err.Error(), http.StatusUnauthorized)
+		http.Error(w, "auth: "+err.Error(), http.StatusUnauthorized)
 		return
 	}
 
 	expiration := time.Now().Add(365 * 24 * time.Hour)
-	cookie := http.Cookie{ Name: "token", Value: ua.Token, Expires:expiration }
+	cookie := http.Cookie{Name: "token", Value: ua.Token, Expires: expiration}
 	http.SetCookie(w, &cookie)
 
 	if redir == "1" {
@@ -64,7 +65,7 @@ func SendEmail(to, text string) {
 	if true {
 		fmt.Println(text)
 	}
-	
+
 	cmd := exec.Command("sendmail", "-f"+to, "serge0x76@gmail.com")
 	cmd.Stdin = strings.NewReader(text)
 	bytes, err := cmd.CombinedOutput()
@@ -100,16 +101,16 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	random_string, err := generateRandomString(15)
+	randomString, err := generateRandomString(15)
 	if err != nil {
 		http.Error(w, "cannot generate registration token", http.StatusInternalServerError)
 		log.Println(err)
 		return
 	}
-	
-	registration_token := base32.StdEncoding.EncodeToString([]byte(random_string))
-	
-	fname := WorkDir+"reg-" + registration_token + ".txt"
+
+	registrationToken := base32.StdEncoding.EncodeToString([]byte(randomString))
+
+	fname := WorkDir + "reg-" + registrationToken + ".txt"
 	f, err := os.Create(fname)
 	if err != nil {
 		http.Error(w, "cannot open registration file", http.StatusInternalServerError)
@@ -118,11 +119,11 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Fprintln(f, user, " ", email)
 	f.Close()
-	
+
 	text := "Subject: chat account request\n\n"
 	text += "Re: " + user + " " + email + "\n\n"
 	text += "To create a new chat account clink the link below\n\n"
-	text += "https://wet.voilokov.com:8085/create?user=" + user + "&email=" + email + "&rt=" + registration_token + "\n\n"
+	text += "https://wet.voilokov.com:8085/create?user=" + user + "&email=" + email + "&rt=" + registrationToken + "\n\n"
 	text += ".\n"
 
 	SendEmail(email, text)
@@ -142,37 +143,37 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fname := WorkDir+"reg-" + token + ".txt"
+	fname := WorkDir + "reg-" + token + ".txt"
 	bytes, err := ioutil.ReadFile(fname)
 	if err != nil {
 		http.Error(w, "cannot read registration file", http.StatusBadRequest)
 		log.Println(err)
 		return
 	}
-	
+
 	fields := strings.Fields(string(bytes))
 	if len(fields) < 2 {
 		http.Error(w, "invalid registration parameters", http.StatusBadRequest)
 		log.Println("wrong fields:", fields)
 		return
 	}
-	
+
 	if user != fields[0] || email != fields[1] {
 		http.Error(w, "invalid registration parameters", http.StatusBadRequest)
 		log.Println("wrong fields:", fields, "user:", user, "email:", email)
 	}
-	
-	random_string, err := generateRandomString(15)
+
+	randomString, err := generateRandomString(15)
 	if err != nil {
 		http.Error(w, "cannot generate password", http.StatusInternalServerError)
 		log.Println(err)
 		return
 	}
 
-	password := base32.StdEncoding.EncodeToString([]byte(random_string))
+	password := base32.StdEncoding.EncodeToString([]byte(randomString))
 
-	user_fname := WorkDir+"user-" + user + ".txt"
-	uf, err := os.Create(user_fname)
+	userFname := WorkDir + "user-" + user + ".txt"
+	uf, err := os.Create(userFname)
 	if err != nil {
 		http.Error(w, "cannot open registration file", http.StatusInternalServerError)
 		log.Println(err)
@@ -181,18 +182,6 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(uf, user, password, email)
 	uf.Close()
 
-//	fmt.Fprintln(w, "registration completed. Your password is " + password)
+	//	fmt.Fprintln(w, "registration completed. Your password is " + password)
 	http.Redirect(w, r, "/auth?user="+user+"&password="+password+"&redir=1", http.StatusFound)
 }
-
-
-
-
-
-
-
-
-
-
-
-

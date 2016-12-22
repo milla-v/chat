@@ -23,6 +23,7 @@ package main
 
 import (
 	"flag"
+
 	"github.com/milla-v/chat/client"
 )
 
@@ -33,7 +34,7 @@ var printConfig = flag.Bool("g", false, "Print config")
 
 func main() {
 	flag.Parse()
-	
+
 	if *useConfig != "" {
 		client.LoadConfig(*useConfig)
 	}
@@ -54,7 +55,7 @@ func main() {
 			panic(err)
 		}
 	}
-	
+
 	if *sendText != "" || *sendFile != "" {
 		return
 	}

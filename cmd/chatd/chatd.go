@@ -5,11 +5,12 @@
 //	chatd -http host:port
 //
 // Command runs standalone server from chat/service package.
-// 
+//
 package main
 
 import (
 	"flag"
+
 	"github.com/milla-v/chat/service"
 )
 
@@ -18,11 +19,11 @@ var printConfig = flag.Bool("g", false, "Print config file")
 
 func main() {
 	flag.Parse()
-	
+
 	if *useConfig != "" {
 		service.LoadConfig(*useConfig)
 	}
-	
+
 	if *printConfig {
 		service.PrintConfig()
 		return

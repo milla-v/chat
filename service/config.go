@@ -1,10 +1,10 @@
 package service
 
 import (
-	"fmt"
-	"os"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"os"
 )
 
 type config struct {
@@ -44,6 +44,7 @@ func init() {
 	LoadConfig(configFile)
 }
 
+// LoadConfig loads custom config.
 func LoadConfig(fname string) {
 	configFile = fname
 
@@ -58,6 +59,7 @@ func LoadConfig(fname string) {
 	}
 }
 
+// PrintConfig prints loaded config to stdout.
 func PrintConfig() {
 	fmt.Println("config file:", configFile)
 	fmt.Println("loaded config:")
