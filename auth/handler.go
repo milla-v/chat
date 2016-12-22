@@ -63,8 +63,9 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 // SendEmail sends email to me.
 // TODO: move it to utils.
 func SendEmail(to, text string) {
-	if true {
+	if len(cfg.AdminEmail) == 0 {
 		fmt.Println(text)
+		return
 	}
 
 	cmd := exec.Command("sendmail", "-f"+to, cfg.AdminEmail)
@@ -121,7 +122,8 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(f, user, " ", email)
 	f.Close()
 
-	text := "Subject: chat account request\n\n"
+	text := "To: " + email + "\n"
+	text += "Subject: chat account request\n\n"
 	text += "Re: " + user + " " + email + "\n\n"
 	text += "To create a new chat account clink the link below\n\n"
 	text += "https://" + cfg.Address + "/create?user=" + user + "&email=" + email + "&rt=" + registrationToken + "\n\n"
@@ -183,6 +185,16 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(uf, user, password, email)
 	uf.Close()
 
-	//fmt.Fprintln(w, "registration completed. Your password is "+password)
-	http.Redirect(w, r, "/auth?user="+user+"&password="+password+"&redir=1", http.StatusFound)
+	text := "Subject: chat account created\n\n"
+	text += "Re: " + user + " " + email + "\n\n"
+	text += "Your account is created.\n\n"
+	text += "Your username is " + user + ".\n"
+	text += "Your password is " + password + ".\n\n"
+	text += "Follow this URL to log into chat:\n"
+	text += "https://" + cfg.Address + "/auth?user=" + user + "&password=" + password + "&redir=1\n\n"
+	text += ".\n"
+	SendEmail(email, text)
+
+	fmt.Fprintln(w, "User "+user+" created. Password is "+password)
+	//http.Redirect(w, r, "/auth?user="+user+"&password="+password+"&redir=1", http.StatusFound)
 }
