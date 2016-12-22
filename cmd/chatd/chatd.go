@@ -13,9 +13,20 @@ import (
 	"github.com/milla-v/chat/service"
 )
 
-var hostport = flag.String("http", "localhost:8085", "chat endpoint")
+var useConfig = flag.String("c", "", "Specify config file")
+var printConfig = flag.Bool("g", false, "Print config file")
 
 func main() {
 	flag.Parse()
-	service.Run(*hostport)
+	
+	if *useConfig != "" {
+		service.LoadConfig(*useConfig)
+	}
+	
+	if *printConfig {
+		service.PrintConfig()
+		return
+	}
+
+	service.Run()
 }

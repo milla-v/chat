@@ -24,7 +24,6 @@ import (
 	"golang.org/x/net/websocket"
 
 	"github.com/milla-v/chat/auth"
-	"github.com/milla-v/chat/config"
 	"github.com/milla-v/chat/prot"
 )
 
@@ -54,7 +53,6 @@ var broadcastChan chan *message // channel to pass message to the worker
 var historyFile *os.File        // file for saving all history
 var recentHistory string        // holds last conversations
 var oneMinuteTicker = time.NewTicker(time.Minute)
-var hostport = "localhost:8085"
 var certFile = "server.pem"
 var keyFile = "server.key"
 
@@ -419,12 +417,12 @@ func workerRoutine() {
 
 func generatePage(source, fname string) {
 	s := "<!-- This file is generated from files/" + fname + ". Do not edit. -->\n\n" + string(source)
-	s = strings.Replace(s, "localhost:8085", hostport, -1)
+	s = strings.Replace(s, "localhost:8085", cfg.Address, -1)
 
 	s = strings.Replace(s, "{version}", version, 1)
 	s = strings.Replace(s, "{date}", date, 1)
 
-	err := ioutil.WriteFile(config.WorkDir+fname, []byte(s), 0666)
+	err := ioutil.WriteFile(cfg.WorkDir+fname, []byte(s), 0666)
 	if err != nil {
 		panic(err)
 	}
@@ -474,7 +472,7 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 
 func createFileServer() http.HandlerFunc {
 	generatePages()
-	dir := http.Dir(config.WorkDir)
+	dir := http.Dir(cfg.WorkDir)
 	fileserver := http.FileServer(dir)
 
 	f := func(w http.ResponseWriter, r *http.Request) {
@@ -541,7 +539,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(mediaType, params)
 
 		fname := time.Now().Format("20060102150405-") + p.FileName()
-		f, err := os.Create(config.WorkDir + fname)
+		f, err := os.Create(cfg.WorkDir + fname)
 		if err != nil {
 			http.Error(w, "cannot save file", http.StatusBadRequest)
 			return
@@ -557,25 +555,25 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func initDir() {
-	localDebug = hostport == "localhost:8085"
+	localDebug = cfg.Address == "localhost:8085"
 	if !localDebug {
 		return
 	}
 
-	config.WorkDir = os.Getenv("HOME") + "/go/work/"
-	_, err := os.Stat(config.WorkDir)
+	cfg.WorkDir = os.Getenv("HOME") + "/go/work/"
+	_, err := os.Stat(cfg.WorkDir)
 	if !os.IsNotExist(err) {
 		return
 	}
 	
-	if err := os.MkdirAll(config.WorkDir, 0777); err != nil {
+	if err := os.MkdirAll(cfg.WorkDir, 0777); err != nil {
 		panic(err)
 	}
 }
 
 func ensureCertificates() {
-	cfname := config.WorkDir + certFile
-	kfname := config.WorkDir + keyFile
+	cfname := cfg.WorkDir + certFile
+	kfname := cfg.WorkDir + keyFile
 	keyExists := false
 	certExists := false
 
@@ -614,21 +612,20 @@ func ensureCertificates() {
 }
 
 // Run starts a chat http server on address (host:port)
-func Run(address string) {
+func Run() {
 	var err error
 
-	hostport = address
 	initDir()
 	ensureCertificates()
 
 	log.Printf("chat version: %s, date: %s\n", version, date)
-	log.Println("starting server on https://"+hostport+"/")
+	log.Println("starting server on https://"+cfg.Address+"/")
 
 	connectChan = make(chan *client)
 	connectedChan = make(chan *client, 100)
 	disconnectChan = make(chan *client, 100)
 	broadcastChan = make(chan *message, 100)
-	historyFile, err = os.OpenFile(config.WorkDir + "history.html", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	historyFile, err = os.OpenFile(cfg.WorkDir + "history.html", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		panic(err)
 	}
@@ -643,6 +640,6 @@ func Run(address string) {
 
 	go workerRoutine()
 
-	err = http.ListenAndServeTLS(hostport, config.WorkDir+"server.pem", config.WorkDir+"server.key", nil)
+	err = http.ListenAndServeTLS(cfg.Address, cfg.WorkDir+"server.pem", cfg.WorkDir+"server.key", nil)
 	log.Fatal(err)
 }

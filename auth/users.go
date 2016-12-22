@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"strings"
-	"github.com/milla-v/chat/config"
 )
 
 // User authentication record
@@ -70,7 +69,7 @@ func login(name, password string) (*UserAuth, error) {
 		return list[idx], nil
 	}
 
-	fname := config.WorkDir+"user-" + name + ".txt"
+	fname := WorkDir+"user-" + name + ".txt"
 	bytes, err := ioutil.ReadFile(fname)
 	if err != nil {
 		log.Println(err)

@@ -10,8 +10,9 @@ import (
 	"os/exec"
 	"strings"
 	"io/ioutil"
-	"github.com/milla-v/chat/config"
 )
+
+var WorkDir string
 
 // AuthHandler gets user, password, redirect parameters from request and logs in the user.
 // Response has Token session cookie.
@@ -108,7 +109,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	
 	registration_token := base32.StdEncoding.EncodeToString([]byte(random_string))
 	
-	fname := config.WorkDir+"reg-" + registration_token + ".txt"
+	fname := WorkDir+"reg-" + registration_token + ".txt"
 	f, err := os.Create(fname)
 	if err != nil {
 		http.Error(w, "cannot open registration file", http.StatusInternalServerError)
@@ -141,7 +142,7 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fname := config.WorkDir+"reg-" + token + ".txt"
+	fname := WorkDir+"reg-" + token + ".txt"
 	bytes, err := ioutil.ReadFile(fname)
 	if err != nil {
 		http.Error(w, "cannot read registration file", http.StatusBadRequest)
@@ -170,7 +171,7 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 
 	password := base32.StdEncoding.EncodeToString([]byte(random_string))
 
-	user_fname := config.WorkDir+"user-" + user + ".txt"
+	user_fname := WorkDir+"user-" + user + ".txt"
 	uf, err := os.Create(user_fname)
 	if err != nil {
 		http.Error(w, "cannot open registration file", http.StatusInternalServerError)
