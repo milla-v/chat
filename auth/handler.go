@@ -10,10 +10,11 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/milla-v/chat/config"
 )
 
-// WorkDir contains working directory
-var WorkDir string
+var cfg = config.Config
 
 // AuthenticateHandler gets user, password, redirect parameters from request and logs in the user.
 // Response has Token session cookie.
@@ -66,7 +67,7 @@ func SendEmail(to, text string) {
 		fmt.Println(text)
 	}
 
-	cmd := exec.Command("sendmail", "-f"+to, "serge0x76@gmail.com")
+	cmd := exec.Command("sendmail", "-f"+to, cfg.AdminEmail)
 	cmd.Stdin = strings.NewReader(text)
 	bytes, err := cmd.CombinedOutput()
 	log.Println("sendmail:", string(bytes))
@@ -110,7 +111,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	registrationToken := base32.StdEncoding.EncodeToString([]byte(randomString))
 
-	fname := WorkDir + "reg-" + registrationToken + ".txt"
+	fname := cfg.WorkDir + "reg-" + registrationToken + ".txt"
 	f, err := os.Create(fname)
 	if err != nil {
 		http.Error(w, "cannot open registration file", http.StatusInternalServerError)
@@ -123,7 +124,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	text := "Subject: chat account request\n\n"
 	text += "Re: " + user + " " + email + "\n\n"
 	text += "To create a new chat account clink the link below\n\n"
-	text += "https://wet.voilokov.com:8085/create?user=" + user + "&email=" + email + "&rt=" + registrationToken + "\n\n"
+	text += "https://" + cfg.Address + "/create?user=" + user + "&email=" + email + "&rt=" + registrationToken + "\n\n"
 	text += ".\n"
 
 	SendEmail(email, text)
@@ -131,7 +132,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateHandler checks if user, email and rt parameters match registration file and creates permanent
-// user profile. Redirects to AuthHandler with user and password and redirect=1 parameters
+// user profile. Redirects to AuthenticateHandler with user and password and redirect=1 parameters
 func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	user := q.Get("user")
@@ -143,7 +144,7 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fname := WorkDir + "reg-" + token + ".txt"
+	fname := cfg.WorkDir + "reg-" + token + ".txt"
 	bytes, err := ioutil.ReadFile(fname)
 	if err != nil {
 		http.Error(w, "cannot read registration file", http.StatusBadRequest)
@@ -172,7 +173,7 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 
 	password := base32.StdEncoding.EncodeToString([]byte(randomString))
 
-	userFname := WorkDir + "user-" + user + ".txt"
+	userFname := cfg.WorkDir + "user-" + user + ".txt"
 	uf, err := os.Create(userFname)
 	if err != nil {
 		http.Error(w, "cannot open registration file", http.StatusInternalServerError)
@@ -182,6 +183,6 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(uf, user, password, email)
 	uf.Close()
 
-	//	fmt.Fprintln(w, "registration completed. Your password is " + password)
+	//fmt.Fprintln(w, "registration completed. Your password is "+password)
 	http.Redirect(w, r, "/auth?user="+user+"&password="+password+"&redir=1", http.StatusFound)
 }

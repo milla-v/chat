@@ -1,4 +1,5 @@
-package service
+// Package config implements chat service config.
+package config
 
 import (
 	"encoding/json"
@@ -7,14 +8,18 @@ import (
 	"os"
 )
 
-type config struct {
-	Address string `json:"address"`
-	WorkDir string `json:"work_dir"`
+// ServiceConfig is a chat service config.
+type ServiceConfig struct {
+	Address    string `json:"address"`
+	WorkDir    string `json:"work_dir"`
+	AdminEmail string `json:"admin_email"`
 }
 
-var cfg = config{
-	Address: "localhost:8085",
-	WorkDir: "/usr/local/www/wet/work/",
+// Config is loaded config.
+var Config = &ServiceConfig{
+	Address:    "localhost:8085",
+	WorkDir:    "/usr/local/www/wet/work/",
+	AdminEmail: "",
 }
 
 var configDir = os.Getenv("HOME") + "/.config/chat"
@@ -31,7 +36,7 @@ func init() {
 
 	_, err = os.Stat(configFile)
 	if os.IsNotExist(err) {
-		buf, err := json.MarshalIndent(&cfg, "    ", "")
+		buf, err := json.MarshalIndent(Config, "    ", "")
 		if err != nil {
 			panic(err)
 		}
@@ -54,7 +59,7 @@ func LoadConfig(fname string) {
 	}
 	defer f.Close()
 	dec := json.NewDecoder(f)
-	if err := dec.Decode(&cfg); err != nil {
+	if err := dec.Decode(Config); err != nil {
 		panic(err)
 	}
 }
@@ -65,5 +70,5 @@ func PrintConfig() {
 	fmt.Println("loaded config:")
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "    ")
-	enc.Encode(&cfg)
+	enc.Encode(Config)
 }

@@ -69,7 +69,7 @@ func login(name, password string) (*UserAuth, error) {
 		return list[idx], nil
 	}
 
-	fname := WorkDir + "user-" + name + ".txt"
+	fname := cfg.WorkDir + "user-" + name + ".txt"
 	bytes, err := ioutil.ReadFile(fname)
 	if err != nil {
 		log.Println(err)

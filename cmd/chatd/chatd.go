@@ -11,6 +11,7 @@ package main
 import (
 	"flag"
 
+	"github.com/milla-v/chat/config"
 	"github.com/milla-v/chat/service"
 )
 
@@ -21,11 +22,11 @@ func main() {
 	flag.Parse()
 
 	if *useConfig != "" {
-		service.LoadConfig(*useConfig)
+		config.LoadConfig(*useConfig)
 	}
 
 	if *printConfig {
-		service.PrintConfig()
+		config.PrintConfig()
 		return
 	}
 

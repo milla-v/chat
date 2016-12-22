@@ -24,6 +24,7 @@ import (
 	"golang.org/x/net/websocket"
 
 	"github.com/milla-v/chat/auth"
+	"github.com/milla-v/chat/config"
 	"github.com/milla-v/chat/prot"
 )
 
@@ -42,8 +43,6 @@ type message struct {
 }
 
 var clients = []*client{} // list of active clients (connected and recently disconnected)
-//var db *sql.DB
-var localDebug bool
 var version = "dev"
 var date = ""
 var connectChan chan *client    // channel to register new client in the list
@@ -55,6 +54,7 @@ var recentHistory string        // holds last conversations
 var oneMinuteTicker = time.NewTicker(time.Minute)
 var certFile = "server.pem"
 var keyFile = "server.key"
+var cfg = config.Config
 
 var doorman = &client{
 	ua: &auth.UserAuth{Name: "doorman"},
@@ -368,7 +368,7 @@ func emailRecentHistory() {
 
 	mwr := multipart.NewWriter(&b)
 
-	fmt.Fprintf(&b, "To: serge0x76+history@gmail.com\n")
+	fmt.Fprintf(&b, "To: %s\n", cfg.AdminEmail)
 	fmt.Fprintf(&b, "Subject: chat conversations\n")
 	fmt.Fprintf(&b, "Content-Type: multipart/mixed; boundary=%s\n\n", mwr.Boundary())
 	headers := make(textproto.MIMEHeader)
@@ -380,11 +380,11 @@ func emailRecentHistory() {
 	}
 	fmt.Fprintln(part, recentHistory)
 	fmt.Fprintf(&b, ".\n")
-	if localDebug {
-		log.Println("=== recent history")
+	if len(cfg.AdminEmail) == 0 {
+		log.Println("=== recent history ===")
 		log.Println(b.String())
 	} else {
-		auth.SendEmail("serge0x76+history@gmail.com", b.String())
+		auth.SendEmail(cfg.AdminEmail, b.String())
 	}
 	recentHistory = ""
 }
@@ -554,13 +554,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body.Close()
 }
 
-func initDir() {
-	localDebug = cfg.Address == "localhost:8085"
-	if !localDebug {
-		return
-	}
-
-	cfg.WorkDir = os.Getenv("HOME") + "/go/work/"
+func initWorkDir() {
 	_, err := os.Stat(cfg.WorkDir)
 	if !os.IsNotExist(err) {
 		return
@@ -599,7 +593,7 @@ func ensureCertificates() {
 	cmd = exec.Command("openssl", "req", "-new", "-x509", "-sha256",
 		"-key", kfname, "-out", cfname,
 		"-days", "3650",
-		"-subj", "/CN=localhost/C=US/ST=NY/L=NYC/emailAddress=serge0x76@gmail.com")
+		"-subj", "/CN=localhost/C=US/ST=NY/L=NYC/emailAddress="+cfg.AdminEmail)
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {
@@ -613,7 +607,7 @@ func ensureCertificates() {
 func Run() {
 	var err error
 
-	initDir()
+	initWorkDir()
 	ensureCertificates()
 
 	log.Printf("chat version: %s, date: %s\n", version, date)
@@ -628,7 +622,6 @@ func Run() {
 		panic(err)
 	}
 
-	auth.WorkDir = cfg.WorkDir
 	http.HandleFunc("/", createFileServer())
 	http.Handle("/ws", websocket.Handler(onWebsocketConnection))
 	http.HandleFunc("/m", messageReceiver)
