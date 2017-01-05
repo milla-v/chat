@@ -13,7 +13,7 @@
 //
 // Rules:
 //	// pkg-build script.sh    Run script locally to build deployment package
-//	// pkg-deploy pkg.tar.gz  Copy package to the cloud, untar, run pkg-configure script             
+//	// pkg-deploy pkg.tar.gz  Copy package to the cloud, untar, run pkg-configure script
 //
 // Rules should contain comment "//" characters at the beggining of the line.
 //
@@ -24,22 +24,23 @@ package main
 
 import (
 	"bufio"
-	"io/ioutil"
 	"encoding/json"
-	"fmt"
-	"golang.org/x/crypto/ssh"
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"os"
-	"time"
-	"strings"
 	"os/exec"
+	"strings"
+	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 var (
-	def = flag.Bool("def", false, "Execute predefined rules")
+	def    = flag.Bool("def", false, "Execute predefined rules")
 	deploy = flag.String("deploy", "", "Rules file")
 	status = flag.Bool("status", false, "Show server server status")
-	tty = flag.Bool("tty", false, "Open tty session")
+	tty    = flag.Bool("tty", false, "Open tty session")
 
 	client *ssh.Client
 )
@@ -67,7 +68,7 @@ func init() {
 
 	_, err = os.Stat(configFile)
 	if os.IsNotExist(err) {
-		buf, err :=json.MarshalIndent(&cfg, "    ", "")
+		buf, err := json.MarshalIndent(&cfg, "    ", "")
 		if err != nil {
 			panic(err)
 		}
@@ -76,7 +77,7 @@ func init() {
 		}
 		panic(configFile + " config file created. Edit it to set credentials")
 	}
-	
+
 	f, err := os.Open(configFile)
 	if err != nil {
 		panic(err)
@@ -86,8 +87,8 @@ func init() {
 	if err := dec.Decode(&cfg); err != nil {
 		panic(err)
 	}
-	
-	if cfg.privateKey, err = ioutil.ReadFile(configDir+cfg.PrivateKeyFile); err != nil {
+
+	if cfg.privateKey, err = ioutil.ReadFile(configDir + cfg.PrivateKeyFile); err != nil {
 		panic(err)
 	}
 }
@@ -99,8 +100,8 @@ func createSshClient() *ssh.Client {
 	}
 
 	config := &ssh.ClientConfig{
-		User: cfg.User,
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		User:    cfg.User,
+		Auth:    []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		Timeout: time.Second * 3,
 	}
 
@@ -170,7 +171,7 @@ func runTerminal() {
 		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
 		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
-	
+
 	// Request pseudo terminal
 	if err := session.RequestPty("xterm", 40, 80, modes); err != nil {
 		panic(err)
@@ -244,7 +245,7 @@ func main() {
 		flag.Usage()
 		return
 	}
- 
+
 	client = createSshClient()
 	defer client.Close()
 

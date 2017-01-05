@@ -62,6 +62,7 @@ var doorman = &client{
 
 func clientRoutine(cli *client) {
 	broadcastChan <- &message{cli, nil, "/replay"}
+	broadcastChan <- &message{cli, nil, "/roster"}
 
 	log.Printf("new client: %+v %+v\n", cli, cli.ws)
 
@@ -82,6 +83,7 @@ func clientRoutine(cli *client) {
 			if e.Ping.Pong >= e.Ping.Ping {
 				log.Printf("pong %s: %d\n", cli.ua.Name, e.Ping.Pong)
 				cli.lastPongTime = time.Now()
+				broadcastChan <- &message{cli, nil, "/roster"}
 			}
 			continue
 		}
