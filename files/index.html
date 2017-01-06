@@ -24,7 +24,7 @@ function notify(s)
 		var notification = new Notification(s);
 		return;
 	}
-	
+
 	if (Notification.permission !== 'denied') {
 		Notification.requestPermission(function (permission) {
 			if (permission === "granted") {
@@ -122,7 +122,7 @@ function keypress(event)
 {
 	if (event.target === textbox && event.keyCode === 13) {
 		sendText();
-		event.returnValue = false;		
+		event.returnValue = false;
 	}
 }
 
@@ -181,15 +181,3 @@ version: {version}, date: {date}<br>
 </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-

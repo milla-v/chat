@@ -10,9 +10,11 @@ import (
 
 // ServiceConfig is a chat service config.
 type ServiceConfig struct {
-	Address    string `json:"address"`
-	WorkDir    string `json:"work_dir"`
-	AdminEmail string `json:"admin_email"`
+	Address          string `json:"address"`
+	WorkDir          string `json:"work_dir"`
+	AdminEmail       string `json:"admin_email"`
+	SMTPUser         string `json:"smtp_user"`
+	SMTPPasswordFile string `json:"smtp_password_file"`
 }
 
 // Config is loaded config.

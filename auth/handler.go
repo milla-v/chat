@@ -1,11 +1,13 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/base32"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/smtp"
 	"os"
 	"os/exec"
 	"strings"
@@ -60,9 +62,9 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Token", ua.Token)
 }
 
-// SendEmail sends email to me.
+// SendEmailBySendmail sends email to admin using sendmail.
 // TODO: move it to utils.
-func SendEmail(to, text string) {
+func SendEmailBySendmail(to, text string) {
 	if len(cfg.AdminEmail) == 0 {
 		fmt.Println(text)
 		return
@@ -74,6 +76,35 @@ func SendEmail(to, text string) {
 	log.Println("sendmail:", string(bytes))
 	if err != nil {
 		log.Println(err)
+		return
+	}
+}
+
+// SendEmail sends email to admin using smtp.
+// TODO: move it to utils.
+func SendEmail(to, text string) {
+	if cfg.AdminEmail == "" || cfg.SMTPUser == "" || cfg.SMTPPasswordFile == "" {
+		log.Println("smtp is not configured")
+		fmt.Println(text)
+		return
+	}
+
+	if to == "" {
+		to = cfg.AdminEmail
+	}
+
+	buf, err := ioutil.ReadFile(cfg.SMTPPasswordFile)
+	if err != nil {
+		log.Println("cannot read smtp password file", err)
+		return
+	}
+
+	password := string(bytes.TrimSpace(buf))
+	auth := smtp.PlainAuth("", cfg.SMTPUser, password, "smtp.gmail.com")
+
+	err = smtp.SendMail("smtp.gmail.com:587", auth, "chat conversations", []string{to}, []byte(text))
+	if err != nil {
+		log.Println("cannot send smtp email", err)
 		return
 	}
 }
@@ -129,7 +160,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	text += "https://" + cfg.Address + "/create?user=" + user + "&email=" + email + "&rt=" + registrationToken + "\n\n"
 	text += ".\n"
 
-	SendEmail(email, text)
+	SendEmail(cfg.AdminEmail, text)
 	fmt.Fprintln(w, "You will receive a confirmation email from administrator.")
 }
 
@@ -185,7 +216,8 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(uf, user, password, email)
 	uf.Close()
 
-	text := "Subject: chat account created\n\n"
+	text := "To: " + email + "\n"
+	text += "Subject: chat account created\n\n"
 	text += "Re: " + user + " " + email + "\n\n"
 	text += "Your account is created.\n\n"
 	text += "Your username is " + user + ".\n"
@@ -193,7 +225,7 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	text += "Follow this URL to log into chat:\n"
 	text += "https://" + cfg.Address + "/auth?user=" + user + "&password=" + password + "&redir=1\n\n"
 	text += ".\n"
-	SendEmail(email, text)
+	SendEmail(cfg.AdminEmail, text)
 
 	fmt.Fprintln(w, "User "+user+" created. Password is "+password)
 	//http.Redirect(w, r, "/auth?user="+user+"&password="+password+"&redir=1", http.StatusFound)
