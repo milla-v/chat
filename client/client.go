@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -129,11 +130,14 @@ func printMessage(e prot.Envelope) {
 }
 
 func getAuthToken() (string, error) {
+	log.Println("read token from", tokenFile)
 
 	_, err := os.Stat(tokenFile)
 	if err == nil {
 		buf, _ := ioutil.ReadFile(tokenFile)
-		return string(buf), nil
+		token := string(bytes.TrimSpace(buf))
+		log.Println("token:", token)
+		return token, nil
 	}
 
 	tr := &http.Transport{
@@ -142,7 +146,11 @@ func getAuthToken() (string, error) {
 	client := &http.Client{Transport: tr}
 
 	vals := url.Values{"user": {cfg.User}, "password": {cfg.Password}}
-	resp, err := client.PostForm("https://"+cfg.Address+"/auth", vals)
+
+	url := "https://" + cfg.Address + "/auth"
+	log.Println("no token. Get from ", url)
+
+	resp, err := client.PostForm(url, vals)
 	if err != nil {
 		println("cannot auth")
 		return "", err
@@ -157,11 +165,12 @@ func getAuthToken() (string, error) {
 	}
 
 	token := resp.Header.Get("Token")
+	log.Println("token:", token)
 	err = ioutil.WriteFile(tokenFile, []byte(token), 0600)
 	if err != nil {
 		return "", nil
 	}
-
+	log.Println("token saved to ", tokenFile)
 	return token, err
 }
 
@@ -194,6 +203,7 @@ func connect() error {
 // to stdout.
 // TODO: replace internal panics with error return value.
 func Listen() {
+	log.Println("listening")
 	os.Remove(tokenFile)
 
 	for {
@@ -220,9 +230,14 @@ func Listen() {
 func SendText(message string) error {
 	token, err := getAuthToken()
 	if err != nil {
-		os.Remove(tokenFile)
+		log.Println("error getting token", err)
+		err = os.Remove(tokenFile)
+		if err != nil {
+			log.Fatal("cannot remove token file", tokenFile, err)
+		}
 		token, err = getAuthToken()
 		if err != nil {
+			log.Println("error gettig token2", err)
 			return err
 		}
 	}
@@ -250,6 +265,11 @@ func SendText(message string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
+		log.Println("http StatusUnauthorized. Resending text.")
+		err = os.Remove(tokenFile)
+		if err != nil {
+			log.Fatal("cannot remove token file", tokenFile, err)
+		}
 		return SendText(message)
 	}
 
@@ -264,11 +284,17 @@ func SendText(message string) error {
 
 // SendFile sends a file to the chat.
 func SendFile(fname string) error {
+	log.Println("sending file", fname)
 	token, err := getAuthToken()
 	if err != nil {
-		os.Remove(tokenFile)
+		log.Println("error getting token", err)
+		err = os.Remove(tokenFile)
+		if err != nil {
+			log.Fatal("cannot remove token file", tokenFile, err)
+		}
 		token, err = getAuthToken()
 		if err != nil {
+			log.Println("error gettig token2", err)
 			return err
 		}
 	}
@@ -285,10 +311,12 @@ func SendFile(fname string) error {
 	w := multipart.NewWriter(&body)
 	fw, err := w.CreateFormFile("file", basename)
 	if err != nil {
+		log.Println("cannot create form", err)
 		panic(err)
 	}
 
 	if _, err = io.Copy(fw, f); err != nil {
+		log.Println("cannot copy form", err)
 		panic(err)
 	}
 	w.Close()
@@ -298,8 +326,12 @@ func SendFile(fname string) error {
 	}
 	client := &http.Client{Transport: tr}
 
-	req, err := http.NewRequest("POST", "https://"+cfg.Address+"/upload", &body)
+	url := "https://" + cfg.Address + "/upload"
+	log.Println("sending to", url)
+
+	req, err := http.NewRequest("POST", url, &body)
 	if err != nil {
+		log.Println("cannot create request to ", url, err)
 		return err
 	}
 
@@ -308,20 +340,28 @@ func SendFile(fname string) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Println("cannot send to ", url, err)
 		return err
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
+		log.Println("http StatusUnauthorized. Resending file.")
+		err = os.Remove(tokenFile)
+		if err != nil {
+			log.Fatal("cannot remove token file", tokenFile, err)
+		}
 		return SendFile(fname)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(os.Stderr, resp.Body)
+		log.Println("http Status", resp.Status)
 		return errors.New("status: " + resp.Status)
 	}
 
 	io.Copy(os.Stdout, resp.Body)
 
+	log.Println("sent successfully")
 	return nil
 }

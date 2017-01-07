@@ -37,9 +37,10 @@ type client struct {
 }
 
 type message struct {
-	from *client
-	to   *client
-	text string
+	from  *client
+	to    *client
+	text  string
+	label string
 }
 
 var clients = []*client{} // list of active clients (connected and recently disconnected)
@@ -61,8 +62,8 @@ var doorman = &client{
 }
 
 func clientRoutine(cli *client) {
-	broadcastChan <- &message{cli, nil, "/replay"}
-	broadcastChan <- &message{cli, nil, "/roster"}
+	broadcastChan <- &message{cli, nil, "/replay", ""}
+	broadcastChan <- &message{cli, nil, "/roster", ""}
 
 	log.Printf("new client: %+v %+v\n", cli, cli.ws)
 
@@ -83,7 +84,7 @@ func clientRoutine(cli *client) {
 			if e.Ping.Pong >= e.Ping.Ping {
 				log.Printf("pong %s: %d\n", cli.ua.Name, e.Ping.Pong)
 				cli.lastPongTime = time.Now()
-				broadcastChan <- &message{cli, nil, "/roster"}
+				broadcastChan <- &message{cli, nil, "/roster", ""}
 			}
 			continue
 		}
@@ -91,7 +92,7 @@ func clientRoutine(cli *client) {
 		if e.Message != nil {
 			cli.lastMessageTime = time.Now()
 			cli.lastPongTime = cli.lastMessageTime
-			broadcastChan <- &message{cli, nil, e.Message.Text}
+			broadcastChan <- &message{cli, nil, e.Message.Text, ""}
 			continue
 		}
 	}
@@ -200,7 +201,7 @@ func replayHistory(cli *client) {
 	}
 }
 
-func sendToAllClients(from, text string) {
+func sendToAllClients(from, text, label string) {
 	e := prot.Envelope{}
 	e.Message = new(prot.Message)
 	msg := e.Message
@@ -222,10 +223,14 @@ func sendToAllClients(from, text string) {
 		}
 
 		if from != cli.ua.Name {
-			if len(text) > 40 {
-				msg.Notification = text[:40] + "..."
+			if label == "" {
+				if len(text) > 40 {
+					msg.Notification = text[:40] + "..."
+				} else {
+					msg.Notification = text + " •"
+				}
 			} else {
-				msg.Notification = text + " •"
+				msg.Notification = label
 			}
 		} else {
 			msg.Notification = ""
@@ -411,7 +416,7 @@ func workerRoutine() {
 			case "/ping":
 				pingClients()
 			default:
-				sendToAllClients(msg.from.ua.Name, msg.text)
+				sendToAllClients(msg.from.ua.Name, msg.text, msg.label)
 			}
 		}
 	}
@@ -468,7 +473,7 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 		cli = &client{ua: ua}
 	}
 
-	m := &message{cli, nil, string(body)}
+	m := &message{cli, nil, string(body), ""}
 	broadcastChan <- m
 }
 
@@ -550,7 +555,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		p.Close()
 		f.Close()
 		text := fmt.Sprintf("file: <a target=\"chaturls\" href=\"%s\">%s</a>", fname, p.FileName())
-		m := &message{&client{ua: ua}, nil, text}
+		m := &message{&client{ua: ua}, nil, text, "file: " + fname}
 		broadcastChan <- m
 	}
 	r.Body.Close()

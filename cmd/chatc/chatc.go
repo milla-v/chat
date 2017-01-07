@@ -5,7 +5,8 @@
 //	chatc [flags]
 //
 // The flags are:
-//	-c FILENAME -- Specify config file
+//	-c FILENAME -- specify config file
+//  -d          -- output debug info
 //
 // Command runs simple chat listener.
 //
@@ -14,7 +15,7 @@
 // To send a message or a file into chat use the same program from other terminal with
 // additional flags.
 //
-// New flags:
+// Send flags:
 //
 //	-t "TEXT"   -- Send plain text
 //	-f FILENAME -- Send file as an attachment
@@ -23,17 +24,24 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
+	"log"
 
 	"github.com/milla-v/chat/client"
 )
 
-var useConfig = flag.String("c", "", "Specify config")
-var sendFile = flag.String("f", "", "File to send to the chat")
-var sendText = flag.String("t", "", "Text to send to the chat")
-var printConfig = flag.Bool("g", false, "Print config")
+var debug = flag.Bool("d", false, "output debug info")
+var useConfig = flag.String("c", "", "set config")
+var sendFile = flag.String("f", "", "file to send to the chat")
+var sendText = flag.String("t", "", "text to send to the chat")
+var printConfig = flag.Bool("g", false, "print config")
 
 func main() {
 	flag.Parse()
+
+	if !*debug {
+		log.SetOutput(ioutil.Discard)
+	}
 
 	if *useConfig != "" {
 		client.LoadConfig(*useConfig)
