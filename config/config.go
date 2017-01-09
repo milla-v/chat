@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 )
 
@@ -20,7 +21,7 @@ type ServiceConfig struct {
 // Config is loaded config.
 var Config = &ServiceConfig{
 	Address:    "localhost:8085",
-	WorkDir:    "/usr/local/www/wet/work/",
+	WorkDir:    os.Getenv("HOME") + "/go/work/",
 	AdminEmail: "",
 }
 
@@ -45,7 +46,7 @@ func init() {
 		if err = ioutil.WriteFile(configFile, buf, 0600); err != nil {
 			panic(err)
 		}
-		panic(configFile + " config file created. Edit it to set credentials")
+		log.Println(configFile + " config file created. Edit it to set credentials")
 	}
 
 	LoadConfig(configFile)

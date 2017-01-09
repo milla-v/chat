@@ -4,7 +4,7 @@ Chat server project
 Quick help
 ----------
 	Get: go get github.com/milla-v/chat/...
-	Doc: godoc -http=:6060 ; open http://localhost:6060/pkg/chat/
+	Doc: godoc -http=:6060 ; firefox http://localhost:6060/pkg/chat/
 
 Goals and features
 ------------------
@@ -23,13 +23,13 @@ Get and build chatd, chatc, ocean
 Read documentation
 ------------------
 
-Run doc server
+Run document server
 
     godoc -http=:6060
 
-Open doc
+Open documentation
 
-	open http://localhost:6060/pkg/chat/
+	firefox http://localhost:6060/pkg/chat/
 
 Run server
 ------------
@@ -38,7 +38,7 @@ Run server
 
 Open web client
 
-	open https://localhost:8085
+	firefox https://localhost:8085
 
 Deploy to the cloud
 -------------------
@@ -49,4 +49,3 @@ Run console client
 ------------------
 
 	chatc
- 

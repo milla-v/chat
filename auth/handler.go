@@ -227,8 +227,9 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	text += ".\n"
 	SendEmail(cfg.AdminEmail, text)
 
-	fmt.Fprintln(w, "User "+user+" created. Password is "+password)
-	//http.Redirect(w, r, "/auth?user="+user+"&password="+password+"&redir=1", http.StatusFound)
+	w.Header().Add("Content-Type", "text/html")
+	fmt.Fprintln(w, "User "+user+" created. Password is "+password+"<br><br>\nClick link to login with these credentials.<br><br>\n")
+	fmt.Fprintln(w, "<a href=\"/auth?user="+user+"&password="+password+"&redir=1\">Log into chat</a>\n")
 
 	err = os.Remove(fname)
 	if err != nil {

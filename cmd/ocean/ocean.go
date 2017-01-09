@@ -84,7 +84,7 @@ func init() {
 	}
 	defer f.Close()
 	dec := json.NewDecoder(f)
-	if err := dec.Decode(&cfg); err != nil {
+	if err = dec.Decode(&cfg); err != nil {
 		panic(err)
 	}
 
@@ -93,7 +93,7 @@ func init() {
 	}
 }
 
-func createSshClient() *ssh.Client {
+func createSSHClient() *ssh.Client {
 	signer, err := ssh.ParsePrivateKey([]byte(cfg.privateKey))
 	if err != nil {
 		panic(err)
@@ -105,7 +105,7 @@ func createSshClient() *ssh.Client {
 		Timeout: time.Second * 3,
 	}
 
-	client, err := ssh.Dial("tcp", cfg.Address, config)
+	client, err = ssh.Dial("tcp", cfg.Address, config)
 	if err != nil {
 		panic(err)
 	}
@@ -246,7 +246,7 @@ func main() {
 		return
 	}
 
-	client = createSshClient()
+	client = createSSHClient()
 	defer client.Close()
 
 	if *deploy != "" {
