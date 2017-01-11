@@ -1,46 +1,34 @@
 // ocean command deploys a program using ssh to digitalocean cloud server.
-// It searches input file for a deployment rules and applies them to the cloud server.
-// You can customize rules and params to deploy to any ssh capable server.
 //
 // Usage:
 //	ocean [flags]
 //
 // Flags:
-//	-def                  Execute predefined rules (mkdist.sh; scp; ssh configure)
-//	-deploy rule_file.go  Processes rules from input file
-//	-status               Returns status of remote server
-//	-tty                  Starts basic tty session on remote server
-//
-// Rules:
-//	// pkg-build script.sh    Run script locally to build deployment package
-//	// pkg-deploy pkg.tar.gz  Copy package to the cloud, untar, run pkg-configure script
-//
-// Rules should contain comment "//" characters at the beggining of the line.
-//
-// In order to build this program you need to provide your sshParams for connecting to remote server.
-// Add your params to ocean.go
+//	-deploy
+//		deploy program. (Runs ./mkdist.sh locally; copies and unpacks package; runs configure.sh remotely)
+//	-status
+//		returns status of remote server
+//	-g
+//		dump config
 //
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
 var (
-	def    = flag.Bool("def", false, "Execute predefined rules")
-	deploy = flag.String("deploy", "", "Rules file")
-	status = flag.Bool("status", false, "Show server server status")
-	tty    = flag.Bool("tty", false, "Open tty session")
+	deploy      = flag.Bool("deploy", false, "deploy program")
+	status      = flag.Bool("status", false, "show remote server status")
+	printConfig = flag.Bool("g", false, "print config")
 
 	client *ssh.Client
 )
@@ -52,10 +40,20 @@ type config struct {
 	privateKey     []byte
 }
 
-var cfg = config{}
-
 var configDir = os.Getenv("HOME") + "/.config/ocean/"
 var configFile = configDir + "ocean.json"
+
+var cfg = config{
+	PrivateKeyFile: configDir + "id_rsa_ocean",
+}
+
+func dumpConfig() {
+	fmt.Println("config file:", configFile)
+	fmt.Println("loaded config:")
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "    ")
+	enc.Encode(&cfg)
+}
 
 func init() {
 	_, err := os.Stat(configDir)
@@ -68,7 +66,8 @@ func init() {
 
 	_, err = os.Stat(configFile)
 	if os.IsNotExist(err) {
-		buf, err := json.MarshalIndent(&cfg, "    ", "")
+		var buf []byte
+		buf, err = json.MarshalIndent(&cfg, "    ", "")
 		if err != nil {
 			panic(err)
 		}
@@ -124,7 +123,7 @@ func createSession() *ssh.Session {
 	return session
 }
 
-func deployFile(fname string) {
+func deployPackage(fname string) {
 	session := createSession()
 
 	// this function does the same as the following commands
@@ -157,84 +156,10 @@ func deployFile(fname string) {
 	fmt.Println("done")
 }
 
-func runTerminal() {
-	session := createSession()
-	defer session.Close()
-
-	in, err := session.StdinPipe()
-	if err != nil {
-		panic(err)
-	}
-
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          0,     // disable echoing
-		ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
-		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
-	}
-
-	// Request pseudo terminal
-	if err := session.RequestPty("xterm", 40, 80, modes); err != nil {
-		panic(err)
-	}
-
-	// Start remote shell
-	if err := session.Shell(); err != nil {
-		panic(err)
-	}
-
-	for {
-		reader := bufio.NewReader(os.Stdin)
-		str, err := reader.ReadString('\n')
-		if err != nil {
-			println(err)
-			break
-		}
-		fmt.Fprint(in, str)
-	}
-}
-
 func getStatus() {
 	session := createSession()
 	defer session.Close()
-	if err := session.Run("ls -l /usr/local/www/wet/"); err != nil {
-		panic(err)
-	}
-}
-
-func execInstallRules(fname string) {
-	f, err := os.Open(fname)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		s := scanner.Text()
-		if strings.HasPrefix(s, "// pkg-build ") {
-			pars := strings.SplitN(s, " ", 3)
-			if len(pars) != 3 {
-				panic("invalid pkg-build command " + s)
-			}
-
-			cmd := exec.Command(pars[2])
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				fmt.Println("errors:[\n", string(out), "]")
-				panic(err)
-			}
-			fmt.Println(string(out))
-		} else if strings.HasPrefix(s, "// pkg-deploy ") {
-			pars := strings.SplitN(s, " ", 3)
-			if len(pars) != 3 {
-				panic("invalid pkg-build command " + s)
-			}
-			deployFile(pars[2])
-			fmt.Println("deployment done")
-			break
-		}
-	}
-
-	if err = scanner.Err(); err != nil {
+	if err := session.Run("uname -a"); err != nil {
 		panic(err)
 	}
 }
@@ -246,24 +171,28 @@ func main() {
 		return
 	}
 
+	if *printConfig {
+		dumpConfig()
+		return
+	}
+
 	client = createSSHClient()
 	defer client.Close()
 
-	if *deploy != "" {
-		execInstallRules(*deploy)
-	} else if *def {
+	if *deploy {
 		cmd := exec.Command("./mkdist.sh")
 		out, err := cmd.CombinedOutput()
+		fmt.Println(string(out))
 		if err != nil {
-			fmt.Println("errors:[\n", string(out), "]")
 			panic(err)
 		}
-		fmt.Println(string(out))
-		deployFile("chat.tar.gz")
+		deployPackage("chat.tar.gz")
 		fmt.Println("deployment done")
-	} else if *status {
+		return
+	}
+
+	if *status {
 		getStatus()
-	} else if *tty {
-		runTerminal()
+		return
 	}
 }
