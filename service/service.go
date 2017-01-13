@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/milla-v/chat/auth"
 	"github.com/milla-v/chat/config"
 	"github.com/milla-v/chat/prot"
+	"github.com/milla-v/chat/util"
 )
 
 type client struct {
@@ -43,23 +43,20 @@ type message struct {
 	label string
 }
 
-var clients = []*client{} // list of active clients (connected and recently disconnected)
 var version = "dev"
 var date = ""
+var clients = []*client{}       // list of active clients (connected and recently disconnected)
+var history []prot.Envelope     // recent history for replay to connected client
+var recentHistory string        // recent history for emailing to the admin
 var connectChan chan *client    // channel to register new client in the list
 var connectedChan chan *client  // channel to start client routine
 var disconnectChan chan *client // channed to deregister the client
 var broadcastChan chan *message // channel to pass message to the worker
 var historyFile *os.File        // file for saving all history
-var recentHistory string        // holds last conversations
 var oneMinuteTicker = time.NewTicker(time.Minute)
 var certFile = "server.pem"
 var keyFile = "server.key"
 var cfg = config.Config
-
-var doorman = &client{
-	ua: &auth.UserAuth{Name: "doorman"},
-}
 
 func clientRoutine(cli *client) {
 	broadcastChan <- &message{cli, nil, "/replay", ""}
@@ -131,66 +128,11 @@ func onWebsocketConnection(ws *websocket.Conn) {
 	}
 }
 
-var cubelevels = []uint64{0x00, 0x5f, 0x87, 0xaf, 0xd7, 0xff}
-var midpoints = []uint64{0x2f, 0x73, 0x9b, 0xc3, 0xeb}
-
-func rgb2xterm(rgb string) string {
-	if len(rgb) != 6 {
-		return ""
-	}
-
-	r, _ := strconv.ParseUint(rgb[0:2], 16, 8)
-	g, _ := strconv.ParseUint(rgb[2:4], 16, 8)
-	b, _ := strconv.ParseUint(rgb[4:6], 16, 8)
-
-	if r+g+b > 500 {
-		// decrease color brightness for dark terminal
-		if r > 100 {
-			r -= 20
-		} else {
-			r = 0
-		}
-
-		if g > 100 {
-			g -= 20
-		} else {
-			g = 0
-		}
-
-		if b > 100 {
-			b -= 20
-		} else {
-			b = 0
-		}
-	}
-
-	rx := 0
-	gx := 0
-	bx := 0
-
-	for _, v := range midpoints {
-		if v < r {
-			rx++
-		}
-		if v < g {
-			gx++
-		}
-		if v < b {
-			bx++
-		}
-	}
-
-	return fmt.Sprintf("38;5;%d", rx*36+gx*6+bx+16)
-}
-
 var colors = map[string]string{
-	"doorman": "FFCCCC",
-	"console": "CCFFFF",
-	"milla":   "CCFFCC",
-	"serge":   "CCCCFF",
+	"console": "DDFFFF",
+	"milla":   "DDFFDD",
+	"serge":   "DDDDFF",
 }
-
-var history []prot.Envelope
 
 func replayHistory(cli *client) {
 	for _, s := range history {
@@ -201,55 +143,58 @@ func replayHistory(cli *client) {
 	}
 }
 
-func sendToAllClients(from, text, label string) {
+func sendToAllClients(from *client, text, label string) {
 	e := prot.Envelope{}
 	e.Message = new(prot.Message)
 	msg := e.Message
 	msg.Ts = time.Now()
-	msg.Name = from
+	msg.Name = from.ua.Name
 	msg.Text = text
+	msg.Notification = label
 	msg.Color, _ = colors[strings.ToLower(msg.Name)]
-	msg.ColorXterm256 = rgb2xterm(msg.Color)
+	msg.ColorXterm256 = util.RGB2xterm(msg.Color)
+
+	if label == "" {
+		if len(text) > 40 {
+			msg.Notification = text[:40] + "..."
+		} else {
+			msg.Notification = text + " •"
+		}
+	}
 
 	re := regexp.MustCompile("https?://[^ ]+")
 	text = re.ReplaceAllString(text, "<a target=\"chaturls\" href=\"$0\">$0</a>")
-	id := msg.Ts.Format("m-20060102-150405.000000")
-	msg.HTML = fmt.Sprintf("<div style=\"background-color: %s\" class=\"msg\">%s %s: %s</div>",
-		msg.Color, msg.Ts.Format("15:04"), from, text)
+	//	id := msg.Ts.Format("m-20060102-150405.000000")
+
+	capname := `<span class="smallcaps">` + strings.Title(from.ua.Name[:3]) + "</span>.\n"
+	msg.HTML = "<p>" + capname + text + "</p>\n"
+
+	//	msg.HTML = fmt.Sprintf("<div id=\"%s\" style=\"background-color: %s\" class=\"msg\">%s %s: <span>%s</span></div>",
+	//		id, msg.Color, msg.Ts.Format("15:04"), from.ua.Name, text)
 
 	for _, cli := range clients {
-		if cli.ws == nil {
+		if cli.ws == nil || from == cli {
 			continue
-		}
-
-		if from != cli.ua.Name {
-			if label == "" {
-				if len(text) > 40 {
-					msg.Notification = text[:40] + "..."
-				} else {
-					msg.Notification = text + " •"
-				}
-			} else {
-				msg.Notification = label
-			}
-		} else {
-			msg.Notification = ""
-			msg.HTML = fmt.Sprintf("<div id=\"%s\" style=\"background-color: %s\" class=\"msg\">%s %s: <span>%s</span></div>",
-				id, msg.Color, msg.Ts.Format("15:04"), from, text)
 		}
 
 		err := websocket.JSON.Send(cli.ws, &e)
 		if err != nil {
-			log.Println("send error:", err)
+			log.Println("cannot send to", cli.ua.Name, err)
 		}
 	}
 
-	if from != "doorman" {
-		e.Message.Notification = ""
-		history = append(history, e)
-		fmt.Fprintln(historyFile, msg.HTML)
-		recentHistory += msg.HTML + "\n"
+	msg.Notification = ""
+
+	if from.ws != nil {
+		err := websocket.JSON.Send(from.ws, &e)
+		if err != nil {
+			log.Println("cannot send to self", from.ua.Name, err)
+		}
 	}
+
+	history = append(history, e)
+	fmt.Fprintln(historyFile, msg.HTML)
+	recentHistory += msg.HTML + "\n"
 }
 
 func pingClients() {
@@ -294,7 +239,7 @@ func sendRoster(cli *client) {
 	text := ""
 
 	for _, cli := range clients {
-		text += cli.ua.Name + "<br>\n"
+		text += "<p>" + cli.ua.Name + "</p>\n"
 	}
 
 	e.Roster.HTML = text
@@ -416,7 +361,7 @@ func workerRoutine() {
 			case "/ping":
 				pingClients()
 			default:
-				sendToAllClients(msg.from.ua.Name, msg.text, msg.label)
+				sendToAllClients(msg.from, msg.text, msg.label)
 			}
 		}
 	}

@@ -1,16 +1,23 @@
 package service
-
 const (
-	indexHTML = `<html>
+indexHTML = `<html>
 <head>
 <title>Chat</title>
 <meta name="viewport" content="width=device-width">
 <style>
-.msg { border-radius: 10px 10px 10px 10px; padding: 8px 8px 8px 8px; left: 200px; }
 .sendbtn { width:80px; height: 60px; }
-#textbox { width:320px; height: 60px; font-size: 16px;  }
-#msglog { width:400px; height: 416px; overflow-y: auto; border: 1px solid gray; top: 0px; }
+#textbox { width:100%; height: 60px; font-size: 16px;  }
+#msglog { height: 80%; overflow-y: auto; top: 0px; }
 #roster { width:80px; height: 100px; overflow-y: auto; border: 1px solid gray; position: absolute; left: 420px; top: 8px; }
+body  {
+	font-size: large;
+	margin-left: 8%;
+	margin-right: 8%;
+	text-align: justify;
+}
+p {text-indent: 3%; }
+p.noindent { text-indent: 0%; }
+.smallcaps { font-variant: small-caps; }
 </style>
 <script>
 function notify(s)
@@ -40,6 +47,7 @@ function notify(s)
 var ws;
 var myname;
 var count = 0;
+var prev_people;
 
 function ws_onclose(e)
 {
@@ -65,7 +73,10 @@ function ws_onmessage(e)
 		e.ping.pong = e.ping.ping;
 		ws.send(JSON.stringify(e));
 	} else if (e.roster != null){
-		roster.innerHTML = e.roster.html;
+		if (e.roster.html !== prev_people) {
+			msglog.innerHTML += '<h3>PEOPLE IN CHAT</h3>\n' + e.roster.html;
+			prev_people = e.roster.html;
+		}
 	} else if (e.message != null){
 		if (e.message.notification.length > 0) {
 			notify(e.message.notification);
@@ -107,10 +118,40 @@ function connect()
 
 function sendText()
 {
-	if (textbox.value.length == 0) {
+	var t = textbox.value;
+
+	if (t.length == 0) {
 		return;
 	}
-	m = { message: { text: textbox.value }};
+
+	if (t == 'n') {
+			enableNotify.checked = !enableNotify.checked;
+			msglog.innerHTML += '<p>(notifications: ' + enableNotify.checked + ')</p>\n';
+			textbox.value = '';
+			msglog.scrollTop = msglog.scrollHeight;
+			return;
+	} else if (t == 'h') {
+		tt = '<h3>SHORTCUTS</h3>\n';
+		tt += '<p>n &mdash; toggle notifications</p>\n';
+		tt += '<p>v &mdash; print version</p>\n';
+		tt += '<p>. &mdash; answer yes</p>\n';
+		tt += '<p>! &mdash; answer YES!!!</p>\n';
+		tt += '<p>, &mdash; answer no</p>\n';
+		msglog.innerHTML += tt;
+		textbox.value = '';
+		msglog.scrollTop = msglog.scrollHeight;
+		return;
+	} else if (t == '.') {
+		t = 'yes';
+	} else if (t == '!') {
+		t = 'YES!!!';
+	} else if (t == ',') {
+		t = 'no';
+	} else if (t == 'f') {
+		toggleControls();
+	}
+
+	m = { message: { text: t }};
 	ws.send(JSON.stringify(m));
 	textbox.value = '';
 }
@@ -152,53 +193,29 @@ function sendFile() {
 </head>
 <body onload="connect()">
 <div id="msglog"></div>
-<div id="roster"></div>
 <br>
+<textarea id="textbox" onkeypress="keypress(event)"></textarea>
 <table>
 	<tr>
-		<td style="border: solid 1px pink">
-			<textarea id="textbox" onkeypress="keypress(event)"></textarea>
-		</td>
-		<td>
-			<button class="sendbtn" onclick="sendText()">Send text</button>
-		</td>
-	</tr>
-	<tr>
-		<td style="border: solid 1px pink">
+		<td style="border: solid 1px pink; display: none">
 			<input type="file" id="uploadfile" name="uploadfile">
 		</td>
-		<td>
+		<td style="display: none">
 			<button class="sendbtn" onclick="sendFile()">Send file</button>
 		</td>
 	</tr>
 </table>
 
-<button onclick="textbox.value='/roster'; sendText();">Help</button>
-&nbsp;&nbsp;&nbsp;
-<input id="enableNotify" type="checkbox" checked>Enable notifications</input>
+<input style="display: none" id="enableNotify" type="checkbox" checked />
 <div>
-<br>
-version: {version}, date: {date}<br>
-<a target="chaturls" href="/history.html">history</a>
-<a href="/login.html">relogin</a>
+	<a target="chaturls" href="/history.html">history</a>
+	<a href="/login.html">relogin</a>
 </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
 `
 
-	loginHTML = `<html>
+loginHTML = `<html>
 <head>
 <title>Login to chat</title>
 <meta name="viewport" content="width=device-width">
@@ -230,4 +247,5 @@ email:<br>
 </body>
 </html>
 `
+
 )
