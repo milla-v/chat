@@ -145,9 +145,10 @@ func replayHistory(cli *client) {
 
 func sendToAllClients(from *client, text, label string) {
 	e := prot.Envelope{}
+	now := time.Now()
 	e.Message = new(prot.Message)
 	msg := e.Message
-	msg.Ts = time.Now()
+	msg.Ts = now
 	msg.Name = from.ua.Name
 	msg.Text = text
 	msg.Notification = label
@@ -167,7 +168,7 @@ func sendToAllClients(from *client, text, label string) {
 	//	id := msg.Ts.Format("m-20060102-150405.000000")
 
 	capname := `<span class="smallcaps">` + strings.Title(from.ua.Name[:3]) + "</span>.\n"
-	msg.HTML = "<p>" + capname + text + "</p>\n"
+	msg.HTML = "<p>" + capname + text + ` <span class="ts">(` + now.Format("15:04") + ")</span></p>\n"
 
 	//	msg.HTML = fmt.Sprintf("<div id=\"%s\" style=\"background-color: %s\" class=\"msg\">%s %s: <span>%s</span></div>",
 	//		id, msg.Color, msg.Ts.Format("15:04"), from.ua.Name, text)
@@ -192,9 +193,12 @@ func sendToAllClients(from *client, text, label string) {
 		}
 	}
 
-	history = append(history, e)
-	fmt.Fprintln(historyFile, msg.HTML)
+	msg.HTML = "<p>" + `<span class="ts">` + now.Format("2006-01-02 15:04:05") + "</span> " + msg.Name + ": " + text + "</p>\n"
 	recentHistory += msg.HTML + "\n"
+	fmt.Fprintln(historyFile, msg.HTML)
+
+	msg.HTML = "<p>" + capname + text + ` <span class="ts">(` + now.Format("15:04") + ")</span></p>\n"
+	history = append(history, e)
 }
 
 func pingClients() {
