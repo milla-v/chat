@@ -96,7 +96,7 @@ func PrintConfig() {
 	fmt.Println("config file:", configFile)
 	fmt.Println("loaded config:")
 	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "    ")
+//	enc.SetIndent("", "    ")
 	enc.Encode(&cfg)
 }
 
