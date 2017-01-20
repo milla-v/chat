@@ -29,6 +29,7 @@ type Config struct {
 	Address  string `json:"address"`
 	User     string `json:"user"`
 	Password string `json:"password"`
+	Debug    bool   `json:"debug"`
 }
 
 var cfg = Config{
@@ -88,6 +89,8 @@ func LoadConfig(fname string) {
 	if err := dec.Decode(&cfg); err != nil {
 		panic(err)
 	}
+
+	tokenFile = cacheDir + "/" + cfg.User + "-token.txt"
 }
 
 // PrintConfig prints loaded config to stdout.
@@ -113,7 +116,7 @@ func printMessage(e prot.Envelope) {
 
 	if e.Ping != nil {
 		e.Ping.Pong = e.Ping.Ping
-		fmt.Printf("pong: %d\n", e.Ping.Pong)
+		fmt.Printf(".")
 		err := websocket.JSON.Send(ws, &e)
 		if err != nil {
 			fmt.Println(err)
@@ -121,11 +124,17 @@ func printMessage(e prot.Envelope) {
 		return
 	}
 
-	if e.Message != nil {
-		fmt.Printf("%s %s%s%s %s\n",
-			e.Message.Ts.Format("15:04"),
-			"\x1b["+e.Message.ColorXterm256+"m", e.Message.Name, "\x1b[m",
-			e.Message.Text)
+	if e.Message == nil {
+		return
+	}
+
+	fmt.Printf("%s %s%s%s %s\n",
+		e.Message.Ts.Format("15:04"),
+		"\x1b["+e.Message.ColorXterm256+"m", e.Message.Name, "\x1b[m",
+		e.Message.Text)
+
+	if e.Message.Notification != "" {
+		notify(e.Message.Name, e.Message.Notification)
 	}
 }
 
