@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/ioutil"
 	"log"
@@ -164,6 +165,7 @@ func sendToAllClients(from *client, text, label string) {
 	}
 
 	re := regexp.MustCompile("https?://[^ ]+")
+	text = html.EscapeString(text)
 	text = re.ReplaceAllString(text, "<a target=\"chaturls\" href=\"$0\">$0</a>")
 	//	id := msg.Ts.Format("m-20060102-150405.000000")
 
