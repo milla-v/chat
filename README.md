@@ -49,3 +49,9 @@ Run console client
 ------------------
 
 	chatc
+
+Useful aliases
+--------------
+
+	alias gg='go install github.com/milla-v/chat/...' # install chat programs
+	alias nn='terminal-notifier -remove chatc'        # remove desktop notification (OSX)

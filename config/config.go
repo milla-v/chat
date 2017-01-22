@@ -16,6 +16,7 @@ type ServiceConfig struct {
 	AdminEmail       string `json:"admin_email"`
 	SMTPUser         string `json:"smtp_user"`
 	SMTPPasswordFile string `json:"smtp_password_file"`
+	PatchDir         string `json:"patch_dir"` // directory for received .patch files
 }
 
 // Config is loaded config.
@@ -72,6 +73,6 @@ func PrintConfig() {
 	fmt.Println("config file:", configFile)
 	fmt.Println("loaded config:")
 	enc := json.NewEncoder(os.Stdout)
-//	enc.SetIndent("", "    ")
+	//	enc.SetIndent("", "    ")
 	enc.Encode(Config)
 }

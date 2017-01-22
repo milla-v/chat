@@ -17,6 +17,7 @@ import (
 	"net/textproto"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -480,7 +481,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	mr := multipart.NewReader(r.Body, params["boundary"])
 
 	for {
-		p, err := mr.NextPart()
+		part, err := mr.NextPart()
 		if err == io.EOF {
 			break
 		}
@@ -488,24 +489,45 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "cannot get part", http.StatusBadRequest)
 			return
 		}
+		defer part.Close()
 
-		mediaType, params, err := mime.ParseMediaType(p.Header.Get("Content-Type"))
+		mediaType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
 		if err != nil {
 			http.Error(w, "cannot parse part media type", http.StatusBadRequest)
 			return
 		}
 		log.Println(mediaType, params)
 
-		fname := time.Now().Format("20060102150405-") + p.FileName()
+		fname := time.Now().Format("20060102150405-") + part.FileName()
 		f, err := os.Create(cfg.WorkDir + fname)
 		if err != nil {
-			http.Error(w, "cannot save file", http.StatusBadRequest)
+			http.Error(w, "cannot create file", http.StatusBadRequest)
 			return
 		}
-		io.Copy(f, p)
-		p.Close()
-		f.Close()
-		text := fmt.Sprintf("file: <a target=\"chaturls\" href=\"%s\">%s</a>", fname, p.FileName())
+		defer f.Close()
+
+		var wr io.Writer
+		wr = f
+
+		if filepath.Ext(fname) == ".patch" && cfg.PatchDir != "" {
+			pf, err := os.Create(cfg.PatchDir + fname)
+			if err != nil {
+				http.Error(w, "cannot create patch file", http.StatusBadRequest)
+				return
+			}
+			wr = io.MultiWriter(f, pf)
+			defer pf.Close()
+		}
+
+		written, err := io.Copy(wr, part)
+		if err != nil {
+			http.Error(w, "cannot copy file", http.StatusBadRequest)
+			return
+		}
+
+		fmt.Printf("%d bytes sent\n", written)
+
+		text := fmt.Sprintf("file: <a target=\"chaturls\" href=\"%s\">%s</a>", fname, part.FileName())
 		m := &message{&client{ua: ua}, nil, text, "file: " + fname}
 		broadcastChan <- m
 	}
