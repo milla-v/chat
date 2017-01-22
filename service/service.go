@@ -509,6 +509,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		var wr io.Writer
 		wr = f
 
+		log.Println("ext:", filepath.Ext(fname), ", patch_dir:", cfg.PatchDir)
 		if filepath.Ext(fname) == ".patch" && cfg.PatchDir != "" {
 			pf, err := os.Create(cfg.PatchDir + fname)
 			if err != nil {
@@ -516,6 +517,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			wr = io.MultiWriter(f, pf)
+			log.Println("=== mw opened")
 			defer pf.Close()
 		}
 
@@ -525,7 +527,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fmt.Printf("%d bytes sent\n", written)
+		fmt.Fprintf(w, "%d bytes sent\n", written)
 
 		text := fmt.Sprintf("file: <a target=\"chaturls\" href=\"%s\">%s</a>", fname, part.FileName())
 		m := &message{&client{ua: ua}, nil, text, "file: " + fname}
