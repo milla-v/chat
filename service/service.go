@@ -91,7 +91,8 @@ func clientRoutine(cli *client) {
 		if e.Message != nil {
 			cli.lastMessageTime = time.Now()
 			cli.lastPongTime = cli.lastMessageTime
-			broadcastChan <- &message{cli, nil, e.Message.Text, ""}
+			text := html.EscapeString(e.Message.Text)
+			broadcastChan <- &message{cli, nil, text, ""}
 			continue
 		}
 	}
@@ -166,7 +167,6 @@ func sendToAllClients(from *client, text, label string) {
 	}
 
 	re := regexp.MustCompile("https?://[^ ]+")
-	text = html.EscapeString(text)
 	text = re.ReplaceAllString(text, "<a target=\"chaturls\" href=\"$0\">$0</a>")
 	//	id := msg.Ts.Format("m-20060102-150405.000000")
 
@@ -425,7 +425,8 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 		cli = &client{ua: ua}
 	}
 
-	m := &message{cli, nil, string(body), ""}
+	text := html.EscapeString(string(body))
+	m := &message{cli, nil, text, ""}
 	broadcastChan <- m
 }
 
