@@ -26,14 +26,16 @@ import (
 
 // Config is a client config.
 type Config struct {
-	Address  string `json:"address"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Debug    bool   `json:"debug"`
+	Address       string `json:"address"`
+	User          string `json:"user"`
+	Password      string `json:"password"`
+	Debug         bool   `json:"debug"`
+	SSLSkipVerify bool   `json:"ssl_skip_verify"`
 }
 
 var cfg = Config{
-	Address: "wet.voilokov.com:8085",
+	Address:       "wet.voilokov.com:8085",
+	SSLSkipVerify: true,
 }
 
 var configDir = os.Getenv("HOME") + "/.config/chat"
@@ -99,7 +101,7 @@ func PrintConfig() {
 	fmt.Println("config file:", configFile)
 	fmt.Println("loaded config:")
 	enc := json.NewEncoder(os.Stdout)
-//	enc.SetIndent("", "    ")
+	//	enc.SetIndent("", "    ")
 	enc.Encode(&cfg)
 }
 
@@ -150,7 +152,7 @@ func getAuthToken() (string, error) {
 	}
 
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.SSLSkipVerify},
 	}
 	client := &http.Client{Transport: tr}
 
@@ -197,7 +199,7 @@ func connect() error {
 
 	config.Header.Add("Token", token)
 	config.TlsConfig = &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: cfg.SSLSkipVerify,
 	}
 
 	ws, err = websocket.DialConfig(config)
@@ -254,7 +256,7 @@ func SendText(message string) error {
 	r := strings.NewReader(message)
 
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.SSLSkipVerify},
 	}
 	client := &http.Client{Transport: tr}
 
@@ -331,7 +333,7 @@ func SendFile(fname string) error {
 	w.Close()
 
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.SSLSkipVerify},
 	}
 	client := &http.Client{Transport: tr}
 
