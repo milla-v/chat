@@ -6,7 +6,7 @@
 //
 // The flags are:
 //	-c FILENAME -- specify config file
-//  -d          -- output debug info
+//  -d          -- enable debug log
 //
 // Command runs simple chat listener.
 //
@@ -26,11 +26,12 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/milla-v/chat/client"
 )
 
-var debug = flag.Bool("d", false, "output debug info")
+var debug = flag.Bool("d", false, "log debug output into ~/.cache/chatc/debug.log")
 var useConfig = flag.String("c", "", "set config")
 var sendFile = flag.String("f", "", "file to send to the chat")
 var sendText = flag.String("t", "", "text to send to the chat")
@@ -39,27 +40,39 @@ var printConfig = flag.Bool("g", false, "print config")
 func main() {
 	flag.Parse()
 
-	if !*debug {
+	cfg := client.NewConfig()
+
+	if *useConfig != "" {
+		cfg.Load(*useConfig)
+	} else {
+		cfg.LoadDefault()
+	}
+
+	if *debug {
+		f, err := os.Create(cfg.CacheDir + "/debug.log")
+		if err != nil {
+			panic(err)
+		}
+		log.SetOutput(f)
+	} else {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	if *useConfig != "" {
-		client.LoadConfig(*useConfig)
-	}
-
 	if *printConfig {
-		client.PrintConfig()
+		cfg.Print()
 		return
 	}
 
+	cli := client.NewClient(cfg)
+
 	if *sendText != "" {
-		if err := client.SendText(*sendText); err != nil {
+		if err := cli.SendText(*sendText); err != nil {
 			panic(err)
 		}
 	}
 
 	if *sendFile != "" {
-		if err := client.SendFile(*sendFile); err != nil {
+		if err := cli.SendFile(*sendFile); err != nil {
 			panic(err)
 		}
 	}
@@ -68,5 +81,5 @@ func main() {
 		return
 	}
 
-	client.Listen()
+	log.Println(cli.Listen())
 }

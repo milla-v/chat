@@ -5,11 +5,9 @@ package client
 import (
 	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -24,291 +22,207 @@ import (
 	"github.com/milla-v/chat/prot"
 )
 
-// Config is a client config.
-type Config struct {
-	Address       string `json:"address"`
-	User          string `json:"user"`
-	Password      string `json:"password"`
-	Debug         bool   `json:"debug"`
-	SSLSkipVerify bool   `json:"ssl_skip_verify"`
+// Client is a console chat client
+type Client struct {
+	cfg       Config
+	ws        *websocket.Conn
+	connected bool
 }
 
-var cfg = Config{
-	Address:       "wet.voilokov.com:8085",
-	SSLSkipVerify: true,
+// NewClient creates new client
+func NewClient(c Config) Client {
+	cli := Client{
+		cfg: c,
+	}
+	return cli
 }
 
-var configDir = os.Getenv("HOME") + "/.config/chat"
-var configFile = configDir + "/chatc.json"
-var cacheDir = os.Getenv("HOME") + "/.cache/chat"
-var tokenFile = cacheDir + "/token.txt"
-
-var ws *websocket.Conn
-var connected = false
-
-func init() {
-	_, err := os.Stat(configDir)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(configDir, 0700)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	_, err = os.Stat(cacheDir)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(cacheDir, 0700)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	_, err = os.Stat(configFile)
-	if os.IsNotExist(err) {
-		buf, err := json.MarshalIndent(&cfg, "    ", "")
-		if err != nil {
-			panic(err)
-		}
-		if err = ioutil.WriteFile(configFile, buf, 0600); err != nil {
-			panic(err)
-		}
-		panic(configFile + " config file created. Edit it to set credentials")
-	}
-
-	LoadConfig(configFile)
-}
-
-// LoadConfig loads custom config file.
-func LoadConfig(fname string) {
-	configFile = fname
-
-	f, err := os.Open(configFile)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&cfg); err != nil {
-		panic(err)
-	}
-
-	tokenFile = cacheDir + "/" + cfg.User + "-token.txt"
-}
-
-// PrintConfig prints loaded config to stdout.
-func PrintConfig() {
-	fmt.Println("cache dir:", cacheDir)
-	fmt.Println("config file:", configFile)
-	fmt.Println("loaded config:")
-	enc := json.NewEncoder(os.Stdout)
-	//	enc.SetIndent("", "    ")
-	enc.Encode(&cfg)
-}
-
-func read() (*prot.Envelope, error) {
+func (c *Client) readWebsoket() (*prot.Envelope, error) {
 	var e prot.Envelope
-	err := websocket.JSON.Receive(ws, &e)
+	err := websocket.JSON.Receive(c.ws, &e)
 	if err != nil {
 		return nil, err
 	}
 	return &e, nil
 }
 
-func printMessage(e prot.Envelope) {
+func (c *Client) processMessage(e prot.Envelope) {
+
+	if e.Message != nil {
+		fmt.Printf("%s %s%s%s %s\n",
+			e.Message.Ts.Format("15:04"),
+			"\x1b["+e.Message.ColorXterm256+"m", e.Message.Name, "\x1b[m",
+			e.Message.Text)
+
+		if e.Message.Notification != "" {
+			notify(e.Message.Name, e.Message.Notification)
+		}
+	}
 
 	if e.Ping != nil {
 		e.Ping.Pong = e.Ping.Ping
-		fmt.Printf(".")
-		err := websocket.JSON.Send(ws, &e)
+		log.Println("ping:", e.Ping.Ping)
+		err := websocket.JSON.Send(c.ws, &e)
 		if err != nil {
 			fmt.Println(err)
 		}
-		return
 	}
 
-	if e.Message == nil {
-		return
-	}
-
-	fmt.Printf("%s %s%s%s %s\n",
-		e.Message.Ts.Format("15:04"),
-		"\x1b["+e.Message.ColorXterm256+"m", e.Message.Name, "\x1b[m",
-		e.Message.Text)
-
-	if e.Message.Notification != "" {
-		notify(e.Message.Name, e.Message.Notification)
+	if e.Roster != nil {
+		fmt.Printf("%s chatters online: %s\n",
+			e.Roster.Ts.Format("15:04"), e.Roster.Text)
 	}
 }
 
-func getAuthToken() (string, error) {
-	log.Println("read token from", tokenFile)
-
-	_, err := os.Stat(tokenFile)
-	if err == nil {
-		buf, _ := ioutil.ReadFile(tokenFile)
-		token := string(bytes.TrimSpace(buf))
-		log.Println("token:", token)
-		return token, nil
-	}
-
+func (c *Client) newHTTPClient() *http.Client {
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.SSLSkipVerify},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.cfg.SSLSkipVerify},
 	}
-	client := &http.Client{Transport: tr}
+	return &http.Client{Transport: tr}
+}
 
-	vals := url.Values{"user": {cfg.User}, "password": {cfg.Password}}
+// ErrInvalidCredentials returned when username or password are incorrect.
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
-	url := "https://" + cfg.Address + "/auth"
+func (c *Client) login() (token string, err error) {
+	client := c.newHTTPClient()
+
+	log.Println("connecting to", c.cfg.Address, "as", c.cfg.User)
+	vals := url.Values{"user": {c.cfg.User}, "password": {c.cfg.Password}}
+
+	url := "https://" + c.cfg.Address + "/auth"
 	log.Println("no token. Get from ", url)
 
 	resp, err := client.PostForm(url, vals)
 	if err != nil {
-		println("cannot auth")
+		log.Println("auth error: postform returned:", err)
 		return "", err
 	}
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		println("status:", resp.Status)
-		io.Copy(os.Stderr, resp.Body)
-		return "", errors.New("cannot auth")
+	if resp.StatusCode == http.StatusUnauthorized {
+		log.Println("status:", resp.Status)
+		return "", ErrInvalidCredentials
 	}
 
-	token := resp.Header.Get("Token")
-	log.Println("token:", token)
-	err = ioutil.WriteFile(tokenFile, []byte(token), 0600)
-	if err != nil {
-		return "", nil
+	if resp.StatusCode != http.StatusOK {
+		log.Println("status:", resp.Status)
+		io.Copy(os.Stderr, resp.Body)
+		return "", errors.New("auth error: " + resp.Status)
 	}
-	log.Println("token saved to ", tokenFile)
-	return token, err
+
+	token = resp.Header.Get("Token")
+	log.Println("auth response. token:", token)
+	return token, nil
 }
 
-func connect() error {
-	token, err := getAuthToken()
-	if err != nil {
-		os.Remove(tokenFile)
-		return err
-	}
-
-	config, err := websocket.NewConfig("wss://"+cfg.Address+"/ws", "https://"+cfg.Address)
+func (c *Client) connect() error {
+	token, err := c.login()
 	if err != nil {
 		return err
 	}
 
-	config.Header.Add("Token", token)
-	config.TlsConfig = &tls.Config{
-		InsecureSkipVerify: cfg.SSLSkipVerify,
-	}
-
-	ws, err = websocket.DialConfig(config)
+	wscfg, err := websocket.NewConfig("wss://"+c.cfg.Address+"/ws", "https://"+c.cfg.Address)
 	if err != nil {
 		return err
 	}
 
+	wscfg.Header.Add("Token", token)
+	wscfg.TlsConfig = &tls.Config{
+		InsecureSkipVerify: c.cfg.SSLSkipVerify,
+	}
+
+	if c.ws, err = websocket.DialConfig(wscfg); err != nil {
+		return err
+	}
+
+	log.Println("connected")
 	return nil
 }
 
-// Listen logs into chat and monitors it for incoming messages and prints messages
+// Listen logins into chat and monitors it for incoming messages and prints messages
 // to stdout.
-// TODO: replace internal panics with error return value.
-func Listen() {
-	log.Println("listening")
-	os.Remove(tokenFile)
+func (c *Client) Listen() error {
+	log.Println("listen")
 
 	for {
-		if ws == nil {
-			if err := connect(); err != nil {
-				fmt.Println("connect error:", err)
+		if c.ws == nil {
+			fmt.Printf("%s connecting to %s as %s\n", time.Now().Format("15:04"), c.cfg.Address, c.cfg.User)
+			err := c.connect()
+			if err == ErrInvalidCredentials {
+				fmt.Println(time.Now().Format("15:04"), "error: invalid user name or password")
+				log.Fatal(err)
+			}
+			if err != nil {
+				fmt.Println(time.Now().Format("15:04"), "error: cannot connect. Retry in 5 sec")
+				log.Println("listen. connect error:", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
+			fmt.Println(time.Now().Format("15:04"), "connected")
 		}
 
-		e, err := read()
+		e, err := c.readWebsoket()
 		if err != nil {
-			fmt.Println("read error:", err)
+			fmt.Println(time.Now().Format("15:04"), "disconnected. Reconnect in 5 sec")
+			log.Println("listen. read error:", err)
 			time.Sleep(time.Second * 5)
+			c.ws.Close()
+			c.ws = nil
 			continue
 		}
 
-		printMessage(*e)
+		c.processMessage(*e)
 	}
 }
 
-// SendText sends a plain text message to the chat.
-func SendText(message string) error {
-	token, err := getAuthToken()
-	if err != nil {
-		log.Println("error getting token", err)
-		err = os.Remove(tokenFile)
-		if err != nil {
-			log.Fatal("cannot remove token file", tokenFile, err)
-		}
-		token, err = getAuthToken()
-		if err != nil {
-			log.Println("error gettig token2", err)
-			return err
-		}
-	}
-
-	r := strings.NewReader(message)
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.SSLSkipVerify},
-	}
-	client := &http.Client{Transport: tr}
-
-	req, err := http.NewRequest("POST", "https://"+cfg.Address+"/m", r)
-	if err != nil {
+func (c *Client) sendRequest(req *http.Request) error {
+	token, err := c.login()
+	if err == ErrInvalidCredentials {
 		return err
 	}
 
-	req.Header.Add("ContentType", "text/plain")
 	req.Header.Add("Token", token)
 
+	client := c.newHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Println("send request:", err)
 		return err
 	}
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized {
-		log.Println("http StatusUnauthorized. Resending text.")
-		err = os.Remove(tokenFile)
-		if err != nil {
-			log.Fatal("cannot remove token file", tokenFile, err)
-		}
-		return SendText(message)
-	}
-
 	if resp.StatusCode != http.StatusOK {
 		io.Copy(os.Stderr, resp.Body)
+		log.Println("http Status", resp.Status)
 		return errors.New("status: " + resp.Status)
 	}
 
 	io.Copy(os.Stdout, resp.Body)
+	log.Println("sent successfully")
 	return nil
 }
 
-// SendFile sends a file to the chat.
-func SendFile(fname string) error {
-	log.Println("sending file", fname)
-	token, err := getAuthToken()
+// SendText sends a plain text message to the chat.
+func (c *Client) SendText(message string) error {
+	log.Println("sending text")
+
+	r := strings.NewReader(message)
+
+	req, err := http.NewRequest("POST", "https://"+c.cfg.Address+"/m", r)
 	if err != nil {
-		log.Println("error getting token", err)
-		err = os.Remove(tokenFile)
-		if err != nil {
-			log.Fatal("cannot remove token file", tokenFile, err)
-		}
-		token, err = getAuthToken()
-		if err != nil {
-			log.Println("error gettig token2", err)
-			return err
-		}
+		return err
 	}
+
+	req.Header.Add("ContentType", "text/plain")
+	return c.sendRequest(req)
+}
+
+// SendFile sends a file to the chat.
+func (c *Client) SendFile(fname string) error {
+	log.Println("sending file", fname)
 
 	var body bytes.Buffer
 
@@ -332,12 +246,7 @@ func SendFile(fname string) error {
 	}
 	w.Close()
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.SSLSkipVerify},
-	}
-	client := &http.Client{Transport: tr}
-
-	url := "https://" + cfg.Address + "/upload"
+	url := "https://" + c.cfg.Address + "/upload"
 	log.Println("sending to", url)
 
 	req, err := http.NewRequest("POST", url, &body)
@@ -347,32 +256,5 @@ func SendFile(fname string) error {
 	}
 
 	req.Header.Set("Content-Type", w.FormDataContentType())
-	req.Header.Set("Token", token)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Println("cannot send to ", url, err)
-		return err
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized {
-		log.Println("http StatusUnauthorized. Resending file.")
-		err = os.Remove(tokenFile)
-		if err != nil {
-			log.Fatal("cannot remove token file", tokenFile, err)
-		}
-		return SendFile(fname)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		io.Copy(os.Stderr, resp.Body)
-		log.Println("http Status", resp.Status)
-		return errors.New("status: " + resp.Status)
-	}
-
-	io.Copy(os.Stdout, resp.Body)
-
-	log.Println("sent successfully")
-	return nil
+	return c.sendRequest(req)
 }

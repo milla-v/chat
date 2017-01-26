@@ -26,6 +26,7 @@ type Message struct {
 // Roster is a list of online users
 type Roster struct {
 	Ts   time.Time `json:"ts"`   // timestamp
+	Text string    `json:"text"` // plain text for console clients
 	HTML string    `json:"html"` // html text for browsers
 }
 

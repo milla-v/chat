@@ -39,7 +39,7 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user == "" || password == "" {
-		http.Error(w, "user or password is empty. Do POST user=USER&password=PASSWD", http.StatusBadRequest)
+		http.Error(w, "user or password is empty", http.StatusUnauthorized)
 		return
 	}
 

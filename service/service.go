@@ -243,13 +243,13 @@ func sendRoster(cli *client) {
 	e := prot.Envelope{}
 	e.Roster = new(prot.Roster)
 	e.Roster.Ts = time.Now()
-	text := ""
 
 	for _, cli := range clients {
-		text += "<p>" + cli.ua.Name + "</p>\n"
+		e.Roster.HTML += "<p>" + cli.ua.Name + "</p>\n"
+		e.Roster.Text += cli.ua.Name + ", "
 	}
 
-	e.Roster.HTML = text
+	e.Roster.Text = strings.Trim(e.Roster.Text, ", ")
 
 	log.Printf("sending roster: %+v", e)
 
