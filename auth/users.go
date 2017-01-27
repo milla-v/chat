@@ -136,13 +136,13 @@ func loadUserProfileByCredentials(name, password string) (*UserAuth, error) {
 		Password: password,
 	}
 
-	log.Println("name:", name, "profile loaded:", ua.Name)
+	log.Println("loaded profile. name:", name)
 	return ua, nil
 }
 
 func login(name, password string) (*UserAuth, error) {
 	var err error
-
+	log.Println("login attempt. name:", name)
 	ua, err := loadUserProfileByCredentials(name, password)
 	if err != nil {
 		log.Println(err)

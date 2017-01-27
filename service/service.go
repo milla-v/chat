@@ -64,8 +64,6 @@ func clientRoutine(cli *client) {
 	broadcastChan <- &message{cli, nil, "/replay", ""}
 	broadcastChan <- &message{cli, nil, "/roster", ""}
 
-	log.Printf("new client: %+v %+v\n", cli, cli.ws)
-
 	for {
 		var e prot.Envelope
 
@@ -122,7 +120,6 @@ func findClient(token string) (*client, error) {
 }
 
 func onWebsocketConnection(ws *websocket.Conn) {
-	log.Printf("websocket connection: %s", ws.RemoteAddr())
 	cli := &client{ws: ws}
 	connectChan <- cli
 	cli = <-connectedChan
@@ -251,7 +248,7 @@ func sendRoster(cli *client) {
 
 	e.Roster.Text = strings.Trim(e.Roster.Text, ", ")
 
-	log.Printf("sending roster: %+v", e)
+	log.Printf("sending roster: %s", e.Roster.Text)
 
 	err := websocket.JSON.Send(cli.ws, &e)
 	if err != nil {
@@ -290,9 +287,11 @@ func connectClient(cli *client) {
 
 	var err error
 
+	log.Printf("websocket connection. remote addr: %s", cli.ws.Request().RemoteAddr)
+
 	token, err := getToken(cli.ws.Request())
 	if err != nil {
-		log.Println("connect client 1: ", err)
+		log.Println("connect client. get token error: ", err)
 		connectedChan <- nil
 		return
 	}
@@ -307,7 +306,7 @@ func connectClient(cli *client) {
 
 	ua, err := auth.GetAuthUser(token)
 	if err != nil {
-		log.Println("connect client 2:", err)
+		log.Println("connect client. get auth user error:", err)
 		connectedChan <- nil
 		return
 	}
@@ -315,7 +314,7 @@ func connectClient(cli *client) {
 	newcli = &client{ua: ua, ws: cli.ws, lastPongTime: time.Now()}
 	clients = append(clients, newcli)
 	connectedChan <- newcli
-	log.Println("connect client 3.")
+	log.Println("connect client. connected:", ua.Name)
 }
 
 func emailRecentHistory() {
@@ -359,7 +358,7 @@ func workerRoutine() {
 		case cli := <-disconnectChan:
 			removeFromList(cli)
 		case msg := <-broadcastChan:
-			log.Printf("%+v", msg)
+			// log.Printf("%+v", msg)
 			switch msg.text {
 			case "/roster":
 				broadcastRoster()
