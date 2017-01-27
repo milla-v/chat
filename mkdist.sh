@@ -30,3 +30,8 @@ chmod +x dist~/root/usr/local/lib/chat.tar.gz-configure.sh
 # pack it
 cd dist~/root
 tar -czf ../../chat.tar.gz *
+cd -
+
+echo Package created. To install copy to the target box and run:
+echo tar -C / -xzf chat.tar.gz
+echo sudo /usr/local/lib/chat.tar.gz-configure.sh

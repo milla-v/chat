@@ -97,9 +97,8 @@ func clientRoutine(cli *client) {
 }
 
 func removeFromList(cli *client) {
-	log.Printf("removing %s", cli.ua.Name)
+	log.Println("removing", cli.ua.Name, "remoteAddr:", cli.ws.Request().RemoteAddr)
 	for idx, c := range clients {
-		log.Printf("ra: %+v,%+v", c.ws.RemoteAddr(), cli.ws.RemoteAddr())
 		if c != cli {
 			continue
 		}
@@ -107,7 +106,7 @@ func removeFromList(cli *client) {
 		cli.ws.Close()
 		break
 	}
-	log.Printf("clients: %d", len(clients))
+	log.Printf("clients left: %d", len(clients))
 }
 
 func findClient(token string) (*client, error) {
@@ -165,13 +164,9 @@ func sendToAllClients(from *client, text, label string) {
 
 	re := regexp.MustCompile("https?://[^ ]+")
 	text = re.ReplaceAllString(text, "<a target=\"chaturls\" href=\"$0\">$0</a>")
-	//	id := msg.Ts.Format("m-20060102-150405.000000")
 
 	capname := `<span class="smallcaps">` + strings.Title(from.ua.Name[:3]) + "</span>.\n"
 	msg.HTML = "<p>" + capname + text + ` <span class="ts">(` + now.Format("15:04") + ")</span></p>\n"
-
-	//	msg.HTML = fmt.Sprintf("<div id=\"%s\" style=\"background-color: %s\" class=\"msg\">%s %s: <span>%s</span></div>",
-	//		id, msg.Color, msg.Ts.Format("15:04"), from.ua.Name, text)
 
 	for _, cli := range clients {
 		if cli.ws == nil || from == cli {
@@ -394,28 +389,34 @@ func generatePages() {
 func messageReceiver(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "only POST method allowed", http.StatusMethodNotAllowed)
+		log.Println("receiver: no POST method")
 		return
 	}
 
 	token, err := getToken(r)
 	if err != nil {
 		http.Error(w, "no token "+err.Error(), http.StatusUnauthorized)
+		log.Println("receiver: no token.", err)
 		return
 	}
 
 	ua, err := auth.GetAuthUser(token)
 	if err != nil {
 		http.Error(w, "no auth user", http.StatusUnauthorized)
+		log.Println("receiver: no auth user.", err)
 		return
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "cannot read body", http.StatusBadRequest)
+		log.Println("receiver: no body.", err)
 		return
 	}
+
 	if len(body) == 0 {
 		http.Error(w, "body is empty", http.StatusBadRequest)
+		log.Println("receiver: body is empty")
 		return
 	}
 
@@ -425,6 +426,8 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 	}
 
 	text := html.EscapeString(string(body))
+	log.Println("message from", ua.Name, ":", text)
+
 	m := &message{cli, nil, text, ""}
 	broadcastChan <- m
 }
@@ -440,12 +443,14 @@ func createFileServer() http.HandlerFunc {
 			cookie, err := r.Cookie("token")
 			if err == http.ErrNoCookie {
 				http.Redirect(w, r, "/login.html", http.StatusFound)
+				log.Println("redirect to /login.html")
 				return
 			}
 
 			_, err = auth.GetAuthUser(cookie.Value)
 			if err != nil {
 				http.Redirect(w, r, "/login.html", http.StatusFound)
+				log.Println("redirect unknown user to /login.html")
 				return
 			}
 		}
@@ -462,19 +467,21 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := getToken(r)
 	if err != nil {
 		http.Error(w, "no token "+err.Error(), http.StatusUnauthorized)
+		log.Println("upload: no token.", err)
 		return
 	}
 
 	ua, err := auth.GetAuthUser(token)
 	if err != nil {
 		http.Error(w, "no auth user", http.StatusUnauthorized)
+		log.Println("upload: no auth user.", err)
 		return
 	}
 
-	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	log.Printf("%+v, %+v", mediaType, params)
+	_, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
 		http.Error(w, "cannot parse content-type", http.StatusBadRequest)
+		log.Println("upload: invalid content-type.", err)
 		return
 	}
 
@@ -487,6 +494,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if err != nil {
 			http.Error(w, "cannot get part", http.StatusBadRequest)
+			log.Println("upload: cannot get part.", err)
 			return
 		}
 		defer part.Close()
@@ -494,14 +502,15 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		mediaType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
 		if err != nil {
 			http.Error(w, "cannot parse part media type", http.StatusBadRequest)
+			log.Println("upload: cannot parse part media type", mediaType, params, err)
 			return
 		}
-		log.Println(mediaType, params)
 
 		fname := time.Now().Format("20060102150405-") + part.FileName()
 		f, err := os.Create(cfg.WorkDir + fname)
 		if err != nil {
 			http.Error(w, "cannot create file", http.StatusBadRequest)
+			log.Println("upload: cannot create file.", fname, err)
 			return
 		}
 		defer f.Close()
@@ -509,27 +518,28 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		var wr io.Writer
 		wr = f
 
-		log.Println("ext:", filepath.Ext(fname), ", patch_dir:", cfg.PatchDir)
 		if filepath.Ext(fname) == ".patch" && cfg.PatchDir != "" {
 			pf, err := os.Create(cfg.PatchDir + fname)
 			if err != nil {
 				http.Error(w, "cannot create patch file", http.StatusBadRequest)
+				log.Println("upload: cannot create patch file.", err)
 				return
 			}
 			wr = io.MultiWriter(f, pf)
-			log.Println("=== mw opened")
 			defer pf.Close()
 		}
 
 		written, err := io.Copy(wr, part)
 		if err != nil {
 			http.Error(w, "cannot copy file", http.StatusBadRequest)
+			log.Println("upload: cannot copy file.", err)
 			return
 		}
 
 		fmt.Fprintf(w, "%d bytes sent\n", written)
 
 		text := fmt.Sprintf("file: <a target=\"chaturls\" href=\"%s\">%s</a>", fname, part.FileName())
+		log.Println("upload: file from", ua.Name, fname)
 		m := &message{&client{ua: ua}, nil, text, "file: " + fname}
 		broadcastChan <- m
 	}
