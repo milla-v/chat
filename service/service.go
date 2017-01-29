@@ -519,7 +519,8 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		wr = f
 
 		if filepath.Ext(fname) == ".patch" && cfg.PatchDir != "" {
-			pf, err := os.Create(cfg.PatchDir + fname)
+			patchFile := cfg.PatchDir + fname
+			pf, err := os.Create(patchFile)
 			if err != nil {
 				http.Error(w, "cannot create patch file", http.StatusBadRequest)
 				log.Println("upload: cannot create patch file.", err)
@@ -527,6 +528,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			wr = io.MultiWriter(f, pf)
 			defer pf.Close()
+			log.Println("saving patch to", patchFile)
 		}
 
 		written, err := io.Copy(wr, part)
