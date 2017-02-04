@@ -26,30 +26,48 @@ var Config = &ServiceConfig{
 	AdminEmail: "",
 }
 
-var configDir = os.Getenv("HOME") + "/.config/chat"
-var configFile = configDir + "/chatd.json"
+var configDir = ""
+var configFile = "/usr/local/etc/chatd.json"
+
+func ensureConfigDir() {
+	_, err := os.Stat(configDir)
+	if !os.IsNotExist(err) {
+		return
+	}
+
+	err = os.MkdirAll(configDir, 0700)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func ensureConfigFile() {
+	_, err := os.Stat(configFile)
+	if !os.IsNotExist(err) {
+		return
+	}
+
+	buf, err := json.MarshalIndent(Config, "    ", "")
+	if err != nil {
+		panic(err)
+	}
+
+	if err = ioutil.WriteFile(configFile, buf, 0600); err != nil {
+		panic(err)
+	}
+
+	log.Println(configFile + " config file created. Edit it to set credentials")
+}
 
 func init() {
-	_, err := os.Stat(configDir)
-	if os.IsNotExist(err) {
-		err = os.MkdirAll(configDir, 0700)
-		if err != nil {
-			panic(err)
-		}
+	homeDir := os.Getenv("HOME")
+	if homeDir != "" {
+		configDir = os.Getenv("HOME") + "/.config/chat"
+		configFile = configDir + "/chatd.json"
 	}
 
-	_, err = os.Stat(configFile)
-	if os.IsNotExist(err) {
-		buf, err := json.MarshalIndent(Config, "    ", "")
-		if err != nil {
-			panic(err)
-		}
-		if err = ioutil.WriteFile(configFile, buf, 0600); err != nil {
-			panic(err)
-		}
-		log.Println(configFile + " config file created. Edit it to set credentials")
-	}
-
+	ensureConfigDir()
+	ensureConfigFile()
 	LoadConfig(configFile)
 }
 
@@ -66,6 +84,7 @@ func LoadConfig(fname string) {
 	if err := dec.Decode(Config); err != nil {
 		panic(err)
 	}
+	log.Println(configFile, "config loaded")
 }
 
 // PrintConfig prints loaded config to stdout.
