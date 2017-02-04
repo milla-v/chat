@@ -5,7 +5,7 @@ import (
 	"os/exec"
 )
 
-func notify(text string) {
+func notify(title, text string) {
 	err := exec.Command("notify-send", "chatc", text).Run()
 	if err != nil {
 		log.Println("notify-send", err)
