@@ -15,7 +15,7 @@ stop_cmd="chatd_stop"
 chatd_start()
 {
 	cd /usr/local/www/wet
-	nohup /usr/local/www/wet/chatd -http wet.voilokov.com:8085 >>/var/log/chatd.log 2>&1 &
+	nohup /usr/local/www/wet/chatd >>/var/log/chatd.log 2>&1 &
 	echo $! >/var/run/chatd.pid
 }
 
