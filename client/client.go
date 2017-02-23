@@ -27,6 +27,7 @@ type Client struct {
 	cfg       Config
 	ws        *websocket.Conn
 	connected bool
+	prevRoster string
 }
 
 // NewClient creates new client
@@ -68,9 +69,10 @@ func (c *Client) processMessage(e prot.Envelope) {
 		}
 	}
 
-	if e.Roster != nil {
+	if e.Roster != nil && e.Roster.Text != c.prevRoster {
 		fmt.Printf("%s chatters online: %s\n",
 			e.Roster.Ts.Format("15:04"), e.Roster.Text)
+			c.prevRoster = e.Roster.Text
 	}
 }
 
