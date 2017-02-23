@@ -45,8 +45,8 @@ type message struct {
 	label string
 }
 
-var version = "dev"
-var date = ""
+var version string
+var date string
 var clients = []*client{}       // list of active clients (connected and recently disconnected)
 var history []prot.Envelope     // recent history for replay to connected client
 var recentHistory string        // recent history for emailing to the admin
@@ -59,6 +59,11 @@ var oneMinuteTicker = time.NewTicker(time.Minute)
 var certFile = "server.pem"
 var keyFile = "server.key"
 var cfg = config.Config
+
+func PrintVersion() {
+	fmt.Println("version:", version)
+	fmt.Println("date:   ", date)
+}
 
 func clientRoutine(cli *client) {
 	broadcastChan <- &message{cli, nil, "/replay", ""}

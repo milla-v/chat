@@ -17,13 +17,16 @@ import (
 
 var useConfig = flag.String("c", "", "Specify config file")
 var printConfig = flag.Bool("g", false, "Print config file")
+var printVersion = flag.Bool("v", false, "Print version")
 
 func main() {
 	flag.Parse()
-
-	if *useConfig != "" {
-		config.LoadConfig(*useConfig)
+	if *printVersion {
+		service.PrintVersion()
+		return
 	}
+
+	config.LoadConfig(*useConfig)
 
 	if *printConfig {
 		config.PrintConfig()
@@ -32,3 +35,4 @@ func main() {
 
 	service.Run()
 }
+

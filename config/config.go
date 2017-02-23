@@ -4,7 +4,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 )
@@ -26,54 +25,13 @@ var Config = &ServiceConfig{
 	AdminEmail: "",
 }
 
-var configDir = ""
 var configFile = "/usr/local/etc/chatd.json"
 
-func ensureConfigDir() {
-	_, err := os.Stat(configDir)
-	if !os.IsNotExist(err) {
-		return
-	}
-
-	err = os.MkdirAll(configDir, 0700)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func ensureConfigFile() {
-	_, err := os.Stat(configFile)
-	if !os.IsNotExist(err) {
-		return
-	}
-
-	buf, err := json.MarshalIndent(Config, "    ", "")
-	if err != nil {
-		panic(err)
-	}
-
-	if err = ioutil.WriteFile(configFile, buf, 0600); err != nil {
-		panic(err)
-	}
-
-	log.Println(configFile + " config file created. Edit it to set credentials")
-}
-
-func init() {
-	homeDir := os.Getenv("HOME")
-	if homeDir != "" {
-		configDir = os.Getenv("HOME") + "/.config/chat"
-		configFile = configDir + "/chatd.json"
-	}
-
-	ensureConfigDir()
-	ensureConfigFile()
-	LoadConfig(configFile)
-}
-
-// LoadConfig loads custom config.
+// LoadConfig loads custom or default config.
 func LoadConfig(fname string) {
-	configFile = fname
+	if fname != "" {
+		configFile = fname
+	}
 
 	f, err := os.Open(configFile)
 	if err != nil {
@@ -92,6 +50,7 @@ func PrintConfig() {
 	fmt.Println("config file:", configFile)
 	fmt.Println("loaded config:")
 	enc := json.NewEncoder(os.Stdout)
-	//	enc.SetIndent("", "    ")
+	//	enc.SetIndent("", "    ") // uncomment in go-1.7
 	enc.Encode(Config)
 }
+
