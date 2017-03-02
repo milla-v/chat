@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/net/websocket"
 
@@ -147,6 +148,24 @@ func replayHistory(cli *client) {
 	}
 }
 
+func cutRunes(s string, n int) string {
+	if n <= utf8.RuneCountInString(s) {
+		return s + " •"
+	}
+
+	cutpos := 0
+	count := 0
+	for pos, rune := range s {
+		count++
+		if count >= n {
+			cutpos = pos + utf8.RuneLen(rune)
+			break
+		}
+	}
+
+	return s[:cutpos] + "..."
+}
+
 func sendToAllClients(from *client, text, label string) {
 	e := prot.Envelope{}
 	now := time.Now()
@@ -160,11 +179,7 @@ func sendToAllClients(from *client, text, label string) {
 	msg.ColorXterm256 = util.RGB2xterm(msg.Color)
 
 	if label == "" {
-		if len(text) > 40 {
-			msg.Notification = text[:40] + "..."
-		} else {
-			msg.Notification = text + " •"
-		}
+		msg.Notification = cutRunes(text, 40)
 	}
 
 	re := regexp.MustCompile("https?://[^ ]+")
