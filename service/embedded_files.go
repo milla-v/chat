@@ -79,7 +79,7 @@ function ws_onmessage(e)
 		ws.send(JSON.stringify(e));
 	} else if (e.roster != null){
 		if (e.roster.html !== prev_people) {
-			msglog.innerHTML += '<h3>PEOPLE IN CHAT</h3>\n' + e.roster.html;
+			msglog.innerHTML += e.roster.html;
 			prev_people = e.roster.html;
 		}
 	} else if (e.message != null){
@@ -94,22 +94,10 @@ function ws_onmessage(e)
 	msglog.scrollTop = msglog.scrollHeight;
 }
 
-function getHelp() {
-	var tt = '<h3>CHAT COMMANDS</h3>\n';
-	tt += '<p>(type single letter command directly in chat input box and hit ENTER)</p>\n';
-	tt += '<p>h &mdash; print this help</p>\n';
-	tt += '<p>f &mdash; show/hide file send panel</p>\n';
-	tt += '<p>n &mdash; show/hide notifications</p>\n';
-	tt += '<p>. &mdash; answer yes</p>\n';
-	tt += '<p>! &mdash; answer YES!!!</p>\n';
-	tt += '<p>, &mdash; answer no</p>\n';
-	return tt;
-}
-
 function ws_onopen()
 {
 	setTitle('Chat');
-	msglog.innerHTML += getHelp();
+	msglog.innerHTML += '<p>(type /help then ENTER)</p>\n';
 	msglog.scrollTop = msglog.scrollHeight;
 }
 
@@ -135,12 +123,6 @@ function connect()
 	ws.onopen = ws_onopen;
 }
 
-function showHelp()
-{
-	textbox.value = 'h';
-	sendText();
-}
-
 function sendText()
 {
 	var t = textbox.value;
@@ -150,13 +132,8 @@ function sendText()
 	}
 
 	if (t == 'n') {
-			showNotification = !showNotification;
-			msglog.innerHTML += '<p>(show notifications: ' + showNotification + ')</p>\n';
-			textbox.value = '';
-			msglog.scrollTop = msglog.scrollHeight;
-			return;
-	} else if (t == 'h') {
-		msglog.innerHTML += getHelp();
+		showNotification = !showNotification;
+		msglog.innerHTML += '<p>(show notifications: ' + showNotification + ')</p>\n';
 		textbox.value = '';
 		msglog.scrollTop = msglog.scrollHeight;
 		return;
@@ -233,7 +210,6 @@ function sendFile() {
 </table>
 
 <div>
-	<a href="javascript:showHelp();">help</a>
 	<a target="chaturls" href="/history.html">history</a>
 	<a href="/login.html">relogin</a>
 </div>

@@ -61,6 +61,7 @@ var certFile = "server.pem"
 var keyFile = "server.key"
 var cfg = config.Config
 
+// PrintVersion prints service version to the stdout.
 func PrintVersion() {
 	fmt.Println("version:", version)
 	fmt.Println("date:   ", date)
@@ -81,11 +82,9 @@ func clientRoutine(cli *client) {
 			break
 		}
 
-		log.Printf("ws receive: %s, %+v", cli.ua.Name, e)
-
 		if e.Ping != nil && e.Ping.Ping > 0 {
 			if e.Ping.Pong >= e.Ping.Ping {
-				log.Printf("pong %s: %d\n", cli.ua.Name, e.Ping.Pong)
+				log.Printf("ws pong. user: %s, pong: %d", cli.ua.Name, e.Ping.Pong)
 				cli.lastPongTime = time.Now()
 				broadcastChan <- &message{cli, nil, "/roster", ""}
 			}
@@ -93,12 +92,15 @@ func clientRoutine(cli *client) {
 		}
 
 		if e.Message != nil {
+			log.Printf("ws msg. user: %s, text: %s", cli.ua.Name, e.Message.Text)
 			cli.lastMessageTime = time.Now()
 			cli.lastPongTime = cli.lastMessageTime
 			text := html.EscapeString(e.Message.Text)
 			broadcastChan <- &message{cli, nil, text, ""}
 			continue
 		}
+
+		log.Printf("ws unknown. user: %s: %+v", cli.ua.Name, e)
 	}
 }
 
@@ -149,7 +151,7 @@ func replayHistory(cli *client) {
 }
 
 func cutRunes(s string, n int) string {
-	if n <= utf8.RuneCountInString(s) {
+	if n > utf8.RuneCountInString(s) {
 		return s + " •"
 	}
 
@@ -179,7 +181,7 @@ func sendToAllClients(from *client, text, label string) {
 	msg.ColorXterm256 = util.RGB2xterm(msg.Color)
 
 	if label == "" {
-		msg.Notification = cutRunes(text, 40)
+		msg.Notification = cutRunes(text, 64)
 	}
 
 	re := regexp.MustCompile("https?://[^ ]+")
@@ -247,23 +249,26 @@ func pingClients() {
 	}
 }
 
-func sendRoster(cli *client) {
+func sendHelp(cli *client) {
 	if len(clients) == 0 {
 		return
 	}
 
+	help := `
+		/help &mdash; print this help\n
+		f     &mdash; show/hide file send panel\n
+		n     &mdash; show/hide notifications\n
+		.     &mdash; answer yes\n
+		!     &mdash; answer YES!!!\n
+		,     &mdash; answer no\n
+		`
+
 	e := prot.Envelope{}
-	e.Roster = new(prot.Roster)
-	e.Roster.Ts = time.Now()
+	e.Message = new(prot.Message)
+	e.Message.Ts = time.Now()
 
-	for _, cli := range clients {
-		e.Roster.HTML += "<p>" + cli.ua.Name + "</p>\n"
-		e.Roster.Text += cli.ua.Name + ", "
-	}
-
-	e.Roster.Text = strings.Trim(e.Roster.Text, ", ")
-
-	log.Printf("sending roster: %s", e.Roster.Text)
+	e.Message.Text = help
+	e.Message.HTML = "<p><pre>" + e.Message.Text + "</pre></p>\n"
 
 	err := websocket.JSON.Send(cli.ws, &e)
 	if err != nil {
@@ -272,12 +277,37 @@ func sendRoster(cli *client) {
 }
 
 func broadcastRoster() {
+	e := prot.Envelope{}
+	e.Roster = new(prot.Roster)
+	now := time.Now()
+	e.Roster.Ts = now
+
+	for _, cli := range clients {
+		e.Roster.Text += cli.ua.Name + ", "
+	}
+
+	e.Roster.Text = strings.Trim(e.Roster.Text, ", ")
+	e.Roster.HTML = "<p>(" + e.Roster.Text + ` in the room) <span class="ts">(` + e.Roster.Ts.Format("15:04") + ")</span></p>\n"
+
+	log.Printf("sending roster: %s", e.Roster.Text)
+
 	for _, cli := range clients {
 		if cli.ws == nil {
 			continue
 		}
-		sendRoster(cli)
+
+		err := websocket.JSON.Send(cli.ws, &e)
+		if err != nil {
+			log.Println("send error:", err)
+		}
 	}
+
+	e.Roster.HTML = "<p>" + `<span class="ts">` + now.Format("2006-01-02 15:04:05") + "</span> (" + e.Roster.Text + " in the room)</p>\n"
+	recentHistory += e.Roster.HTML + "\n"
+	fmt.Fprintln(historyFile, e.Roster.HTML)
+
+	e.Roster.HTML = "<p>(" + e.Roster.Text + ` in the room) <span class="ts">(` + now.Format("15:04") + ")</span></p>\n"
+	history = append(history, e)
 }
 
 func getToken(r *http.Request) (string, error) {
@@ -377,6 +407,8 @@ func workerRoutine() {
 			switch msg.text {
 			case "/roster":
 				broadcastRoster()
+			case "/help":
+				sendHelp(msg.from)
 			case "/replay":
 				replayHistory(msg.from)
 			case "/ping":
@@ -540,10 +572,10 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 		if filepath.Ext(fname) == ".patch" && cfg.PatchDir != "" {
 			patchFile := cfg.PatchDir + fname
-			pf, err := os.Create(patchFile)
-			if err != nil {
+			pf, err1 := os.Create(patchFile)
+			if err1 != nil {
 				http.Error(w, "cannot create patch file", http.StatusBadRequest)
-				log.Println("upload: cannot create patch file.", err)
+				log.Println("upload: cannot create patch file.", err1)
 				return
 			}
 			wr = io.MultiWriter(f, pf)
