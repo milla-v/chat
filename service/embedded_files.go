@@ -78,9 +78,9 @@ function ws_onmessage(e)
 		e.ping.pong = e.ping.ping;
 		ws.send(JSON.stringify(e));
 	} else if (e.roster != null){
-		if (e.roster.html !== prev_people) {
+		if (e.roster.text !== prev_people) {
 			msglog.innerHTML += e.roster.html;
-			prev_people = e.roster.html;
+			prev_people = e.roster.text;
 		}
 	} else if (e.message != null){
 		if (e.message.notification.length > 0) {

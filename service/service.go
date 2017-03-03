@@ -56,7 +56,8 @@ var connectedChan chan *client  // channel to start client routine
 var disconnectChan chan *client // channed to deregister the client
 var broadcastChan chan *message // channel to pass message to the worker
 var historyFile *os.File        // file for saving all history
-var oneMinuteTicker = time.NewTicker(time.Minute)
+var tenMinutesTicker = time.NewTicker(time.Minute*time.Duration(10))
+var prevRoster string
 var certFile = "server.pem"
 var keyFile = "server.key"
 var cfg = config.Config
@@ -286,6 +287,12 @@ func broadcastRoster() {
 		e.Roster.Text += cli.ua.Name + ", "
 	}
 
+	if prevRoster == e.Roster.Text {
+		return
+	}
+
+	prevRoster = e.Roster.Text
+
 	e.Roster.Text = strings.Trim(e.Roster.Text, ", ")
 	e.Roster.HTML = "<p>(" + e.Roster.Text + ` in the room) <span class="ts">(` + e.Roster.Ts.Format("15:04") + ")</span></p>\n"
 
@@ -395,7 +402,7 @@ func emailRecentHistory() {
 func workerRoutine() {
 	for {
 		select {
-		case <-oneMinuteTicker.C:
+		case <-tenMinutesTicker.C:
 			pingClients()
 			emailRecentHistory()
 		case cli := <-connectChan:
