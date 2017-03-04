@@ -56,11 +56,20 @@ var connectedChan chan *client  // channel to start client routine
 var disconnectChan chan *client // channed to deregister the client
 var broadcastChan chan *message // channel to pass message to the worker
 var historyFile *os.File        // file for saving all history
-var tenMinutesTicker = time.NewTicker(time.Minute*time.Duration(10))
+var tenMinutesTicker = time.NewTicker(time.Minute * time.Duration(10))
 var prevRoster string
 var certFile = "server.pem"
 var keyFile = "server.key"
 var cfg = config.Config
+
+const helpText = `
+	/help &mdash; print this help\n
+	f     &mdash; show/hide file send panel\n
+	n     &mdash; show/hide notifications\n
+	.     &mdash; answer yes\n
+	!     &mdash; answer YES!!!\n
+	,     &mdash; answer no\n
+	`
 
 // PrintVersion prints service version to the stdout.
 func PrintVersion() {
@@ -169,6 +178,18 @@ func cutRunes(s string, n int) string {
 	return s[:cutpos] + "..."
 }
 
+func autoreplaceText(s string) string {
+	switch s {
+	case ".":
+		return "yes"
+	case ",":
+		return "no"
+	case "!":
+		return "YES!!!"
+	}
+	return s
+}
+
 func sendToAllClients(from *client, text, label string) {
 	e := prot.Envelope{}
 	now := time.Now()
@@ -176,7 +197,7 @@ func sendToAllClients(from *client, text, label string) {
 	msg := e.Message
 	msg.Ts = now
 	msg.Name = from.ua.Name
-	msg.Text = text
+	msg.Text = autoreplaceText(text)
 	msg.Notification = label
 	msg.Color, _ = colors[strings.ToLower(msg.Name)]
 	msg.ColorXterm256 = util.RGB2xterm(msg.Color)
@@ -255,20 +276,11 @@ func sendHelp(cli *client) {
 		return
 	}
 
-	help := `
-		/help &mdash; print this help\n
-		f     &mdash; show/hide file send panel\n
-		n     &mdash; show/hide notifications\n
-		.     &mdash; answer yes\n
-		!     &mdash; answer YES!!!\n
-		,     &mdash; answer no\n
-		`
-
 	e := prot.Envelope{}
 	e.Message = new(prot.Message)
 	e.Message.Ts = time.Now()
 
-	e.Message.Text = help
+	e.Message.Text = helpText
 	e.Message.HTML = "<p><pre>" + e.Message.Text + "</pre></p>\n"
 
 	err := websocket.JSON.Send(cli.ws, &e)
