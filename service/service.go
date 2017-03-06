@@ -46,29 +46,31 @@ type message struct {
 	label string
 }
 
-var version string
-var date string
-var clients = []*client{}       // list of active clients (connected and recently disconnected)
-var history []prot.Envelope     // recent history for replay to connected client
-var recentHistory string        // recent history for emailing to the admin
-var connectChan chan *client    // channel to register new client in the list
-var connectedChan chan *client  // channel to start client routine
-var disconnectChan chan *client // channed to deregister the client
-var broadcastChan chan *message // channel to pass message to the worker
-var historyFile *os.File        // file for saving all history
-var tenMinutesTicker = time.NewTicker(time.Minute * time.Duration(10))
-var prevRoster string
-var certFile = "server.pem"
-var keyFile = "server.key"
-var cfg = config.Config
+var (
+	version          string
+	date             string
+	clients          = []*client{}   // list of active clients (connected and recently disconnected)
+	history          []prot.Envelope // recent history for replay to connected client
+	recentHistory    string          // recent history for emailing to the admin
+	connectChan      chan *client    // channel to register new client in the list
+	connectedChan    chan *client    // channel to start client routine
+	disconnectChan   chan *client    // channed to deregister the client
+	broadcastChan    chan *message   // channel to pass message to the worker
+	historyFile      *os.File        // file for saving all history
+	tenMinutesTicker = time.NewTicker(time.Minute * time.Duration(10))
+	certFile         = "server.pem"
+	keyFile          = "server.key"
+	cfg              = config.Config
+)
 
 const helpText = `
-	/help &mdash; print this help\n
-	f     &mdash; show/hide file send panel\n
-	n     &mdash; show/hide notifications\n
-	.     &mdash; answer yes\n
-	!     &mdash; answer YES!!!\n
-	,     &mdash; answer no\n
+	/help   &mdash; print this help\n
+	/roster &mdash; print users in this room\n
+	f       &mdash; show/hide file send panel\n
+	n       &mdash; show/hide notifications\n
+	.       &mdash; answer yes\n
+	!       &mdash; answer YES!!!\n
+	,       &mdash; answer no\n
 	`
 
 // PrintVersion prints service version to the stdout.
@@ -289,7 +291,7 @@ func sendHelp(cli *client) {
 	}
 }
 
-func broadcastRoster() {
+func sendRoster(cli *client) {
 	e := prot.Envelope{}
 	e.Roster = new(prot.Roster)
 	now := time.Now()
@@ -299,34 +301,15 @@ func broadcastRoster() {
 		e.Roster.Text += cli.ua.Name + ", "
 	}
 
-	if prevRoster == e.Roster.Text {
-		return
-	}
-
-	prevRoster = e.Roster.Text
-
 	e.Roster.Text = strings.Trim(e.Roster.Text, ", ")
 	e.Roster.HTML = "<p>(" + e.Roster.Text + ` in the room) <span class="ts">(` + e.Roster.Ts.Format("15:04") + ")</span></p>\n"
 
 	log.Printf("sending roster: %s", e.Roster.Text)
 
-	for _, cli := range clients {
-		if cli.ws == nil {
-			continue
-		}
-
-		err := websocket.JSON.Send(cli.ws, &e)
-		if err != nil {
-			log.Println("send error:", err)
-		}
+	err := websocket.JSON.Send(cli.ws, &e)
+	if err != nil {
+		log.Println("send error:", err)
 	}
-
-	e.Roster.HTML = "<p>" + `<span class="ts">` + now.Format("2006-01-02 15:04:05") + "</span> (" + e.Roster.Text + " in the room)</p>\n"
-	recentHistory += e.Roster.HTML + "\n"
-	fmt.Fprintln(historyFile, e.Roster.HTML)
-
-	e.Roster.HTML = "<p>(" + e.Roster.Text + ` in the room) <span class="ts">(` + now.Format("15:04") + ")</span></p>\n"
-	history = append(history, e)
 }
 
 func getToken(r *http.Request) (string, error) {
@@ -425,13 +408,11 @@ func workerRoutine() {
 			// log.Printf("%+v", msg)
 			switch msg.text {
 			case "/roster":
-				broadcastRoster()
+				sendRoster(msg.from)
 			case "/help":
 				sendHelp(msg.from)
 			case "/replay":
 				replayHistory(msg.from)
-			case "/ping":
-				pingClients()
 			default:
 				sendToAllClients(msg.from, msg.text, msg.label)
 			}
