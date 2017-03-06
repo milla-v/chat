@@ -22,5 +22,5 @@ func TestGenPassword(t *testing.T) {
 	}
 	saltedPassword := base32.StdEncoding.EncodeToString(dk)
 
-	println(salt, len(salt), saltedPassword, len(saltedPassword))
+	println(len(rnd64), salt, len(salt), saltedPassword, len(saltedPassword))
 }

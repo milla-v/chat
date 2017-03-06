@@ -9,7 +9,6 @@ indexHTML = `<html>
 #textbox { width:100%; height: 60px; font-size: 16px;  }
 #sendfilepad { width:50%; height: 60px; font-size: 16px;  }
 #msglog { height: 80%; overflow-y: auto; top: 0px; }
-#roster { width:80px; height: 100px; overflow-y: auto; border: 1px solid gray; position: absolute; left: 420px; top: 8px; }
 body  {
 	font-size: large;
 	margin-left: 8%;
@@ -50,9 +49,7 @@ function notify(s)
 }
 
 var ws;
-var myname;
 var count = 0;
-var prev_people;
 
 function ws_onclose(e)
 {
@@ -78,10 +75,7 @@ function ws_onmessage(e)
 		e.ping.pong = e.ping.ping;
 		ws.send(JSON.stringify(e));
 	} else if (e.roster != null){
-		if (e.roster.text !== prev_people) {
-			msglog.innerHTML += e.roster.html;
-			prev_people = e.roster.text;
-		}
+		msglog.innerHTML += e.roster.html;
 	} else if (e.message != null){
 		if (e.message.notification.length > 0) {
 			notify(e.message.notification);
@@ -137,12 +131,6 @@ function sendText()
 		textbox.value = '';
 		msglog.scrollTop = msglog.scrollHeight;
 		return;
-	} else if (t == '.') {
-		t = 'yes';
-	} else if (t == '!') {
-		t = 'YES!!!';
-	} else if (t == ',') {
-		t = 'no';
 	} else if (t == 'f') {
 		toggleSendFile();
 		textbox.value = '';
@@ -219,32 +207,32 @@ function sendFile() {
 
 loginHTML = `<html>
 <head>
-<title>Login to chat</title>
-<meta name="viewport" content="width=device-width">
+	<title>Login to chat</title>
+	<meta name="viewport" content="width=device-width">
 </head>
 <body>
 
-<h3>Log into chat</h3>
-<form method="POST" action="/auth">
-username:<br>
-<input name="user"/><br><br>
-password:<br>
-<input type="password" name="password"/><br>
-<br>
-<button type="submit">Login</button>
-<input type="hidden" name="redirect" value="1"/><br>
-</form>
-<br><br>
+	<h3>Log into chat</h3>
+	<form method="POST" action="/auth">
+		username:<br>
+		<input name="user"/><br><br>
+		password:<br>
+		<input type="password" name="password"/><br>
+		<br>
+		<button type="submit">Login</button>
+		<input type="hidden" name="redirect" value="1"/><br>
+	</form>
+	<br><br>
 
-<h3>Register</h3>
-<form method="POST" action="/register">
-username:<br>
-<input name="user"/><br><br>
-email:<br>
-<input type="email" name="email"/><br>
-<br>
-<button type="submit">Register</button>
-</form>
+	<h3>Register</h3>
+	<form method="POST" action="/register">
+		username:<br>
+		<input name="user"/><br><br>
+		email:<br>
+		<input type="email" name="email"/><br>
+		<br>
+		<button type="submit">Register</button>
+	</form>
 
 </body>
 </html>
