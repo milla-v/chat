@@ -24,17 +24,22 @@ import (
 )
 
 var (
-	createKey   = flag.String("ck", "", "create encryption key protected by `password`")
-	restoreKey  = flag.String("rk", "", "restore encryption key using `salt_file,password`")
+	createKey  = flag.String("key-create", "", "create encryption key protected by `password`")
+	restoreKey = flag.String("key-restore", "", "restore encryption key using `salt_file,password`")
+	checkKey  = flag.String("key-check", "", "check encryption key protected by `password`")
 
 	printConfig = flag.Bool("g", false, "print effective config")
 	encryptDocs = flag.Bool("c", false, "encrypt docs dir into xdoc file")
 	openDoc     = flag.String("o", "", "open document from xdoc by matching `regex`")
-	listDocs = flag.Bool("t", false, "list all entries in xdoc file")
+	listDocs    = flag.Bool("t", false, "list all entries in xdoc file")
 	extractDocs = flag.Bool("x", false, "extract xdoc file info docs dir")
 
-	docsDir = flag.String("docs", os.Getenv("HOME") + "/.local/papers", "set docs dir")
-	xdocFile = flag.String("xdoc", os.Getenv("HOME") + "/.local/xdoc/papers.xdoc", "set xdoc file")
+	editPasswords = flag.Bool("e", false, "edit password file")
+	findPassword  = flag.Bool("p", false, "find password")
+
+	docsDir   = flag.String("docs", os.Getenv("HOME")+"/.local/papers", "set docs dir")
+	xdocFile  = flag.String("xdoc", os.Getenv("HOME")+"/.local/xdoc/papers.xdoc", "set xdoc file")
+	xpassFile = flag.String("xpass", os.Getenv("HOME")+"/.local/xdoc/pass.xdoc", "set xpass file")
 )
 
 var (
@@ -244,7 +249,7 @@ func scanXdocFile() {
 
 		dst := ""
 		if open {
-			dst = filepath.Join(os.TempDir(), "xdoc-" + filepath.Base(header.Path))
+			dst = filepath.Join(os.TempDir(), "xdoc-"+filepath.Base(header.Path))
 		} else if *extractDocs {
 			dst = filepath.Join(filepath.Dir(*docsDir), header.Path)
 			fmt.Println("extracting to", dst)
@@ -299,6 +304,28 @@ func restoreSymmetricKey(saltAndPassword string) {
 	fmt.Println("restored key saved to", keyFname)
 }
 
+func checkSymmetricKey(password string) {
+	salt, err := ioutil.ReadFile(saltFname)
+	if err != nil {
+		panic(err)
+	}
+
+	keybytes, err := ioutil.ReadFile(keyFname)
+	if err != nil {
+		panic(err)
+	}
+
+	key := string(keybytes)
+	dk := pbkdf2.Key([]byte(password), salt, 4096, 32, sha256.New)
+	str := base32.StdEncoding.EncodeToString(dk)
+
+	if key == str {
+		fmt.Println("key is ok")
+	} else {
+		fmt.Println("invalid password")
+	}
+}
+
 func encryptDocsDir() {
 	f, err := os.Create(*xdocFile)
 	if err != nil {
@@ -331,9 +358,147 @@ func encryptDocsDir() {
 func printEffectiveConfig() {
 	fmt.Println("docsDir:", *docsDir)
 	fmt.Println("xdocFile:", *xdocFile)
+	fmt.Println("xpassFile:", *xpassFile)
 	fmt.Println("keyFname:", keyFname)
 	fmt.Println("saltFname:", saltFname)
 }
+
+func encryptFile(src, dst string) error {
+	fsrc, err := os.Open(src)
+	if err != nil {
+		panic(err)
+	}
+	defer fsrc.Close()
+
+	f, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	hints := &openpgp.FileHints{
+		IsBinary: true,
+		FileName: filepath.Base(dst),
+		ModTime:  time.Now().UTC(),
+	}
+
+	config := &packet.Config{}
+	config.DefaultCipher = packet.CipherAES256
+	config.DefaultCompressionAlgo = packet.CompressionNone
+	encrypter, err = openpgp.SymmetricallyEncrypt(f, key, hints, config)
+	if err != nil {
+		return err
+	}
+
+	defer encrypter.Close()
+	_, err = io.Copy(encrypter, fsrc)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func calcHash(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%x\n", h.Sum(nil))
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func runPasswordEditor() {
+	tmpfname := filepath.Join(os.TempDir(), "xdoc-pass.txt")
+
+	_, err := os.Stat(tmpfname)
+	if err == nil || !os.IsNotExist(err) {
+		fmt.Println(tmpfname, "exists. Removing.")
+		err := os.Remove(tmpfname)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	tmpf, err := os.OpenFile(tmpfname, os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = os.Stat(*xpassFile)
+
+	if os.IsNotExist(err) {
+		fmt.Fprintln(tmpf, "# password file\n")
+	} else {
+		encryptedFile, err := os.Open(*xpassFile)
+		if err != nil {
+			panic(err)
+		}
+
+		md, err := openpgp.ReadMessage(encryptedFile, nil, prompt, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		decrypter := md.LiteralData.Body
+		_, err = io.Copy(tmpf, decrypter)
+		if err != nil {
+			panic(err)
+		}
+
+		encryptedFile.Close()
+	}
+	tmpf.Close()
+
+	hash1 := calcHash(tmpfname)
+	cmd := exec.Command("vim", tmpfname)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	err = cmd.Run()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("vim stopped")
+
+	hash2 := calcHash(tmpfname)
+	if hash2 == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+		fmt.Println("discard changes")
+		return
+	}
+
+	if hash1 == hash2 {
+		fmt.Println("no changes")
+		return
+	}
+
+	newfname := *xpassFile + ".new"
+	err = encryptFile(tmpfname, newfname)
+	err2 := os.Remove(tmpfname)
+
+	if err != nil || err2 != nil {
+		os.Remove(newfname)
+		if err2 != nil {
+			panic(err2)
+		} else {
+			panic(err)
+		}
+	}
+	err = os.Rename(*xpassFile, *xpassFile+time.Now().UTC().Format("-20060102-150405"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = os.Rename(newfname, *xpassFile)
+	if err != nil {
+		panic(err)
+	}
+}
+
 
 func main() {
 	flag.Parse()
@@ -353,10 +518,20 @@ func main() {
 		return
 	}
 
+	if *checkKey != "" {
+		checkSymmetricKey(*checkKey)
+		return
+	}
+
 	var err error
 	key, err = ioutil.ReadFile(keyFname)
 	if err != nil {
 		panic(err)
+	}
+
+	if *editPasswords {
+		runPasswordEditor()
+		return
 	}
 
 	if *encryptDocs {
