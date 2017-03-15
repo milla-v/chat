@@ -33,12 +33,15 @@ var (
 	openDoc     = flag.String("o", "", "open document from xdoc by matching `regex`")
 	listDocs    = flag.Bool("t", false, "list all entries in xdoc file")
 	extractDocs = flag.Bool("x", false, "extract xdoc file info docs dir")
+	createIndex = flag.Bool("index", false, "create index from xdoc file")
+	readIndex = flag.Bool("index-read", false, "dump xdoc index")
 
 	editPasswords = flag.Bool("e", false, "edit password file")
 	findPassword  = flag.Bool("p", false, "find password")
 
-	docsDir   = flag.String("docs", os.Getenv("HOME")+"/.local/papers", "set docs dir")
-	xdocFile  = flag.String("xdoc", os.Getenv("HOME")+"/.local/xdoc/papers.xdoc", "set xdoc file")
+	docsDir   = flag.String("docs", os.Getenv("HOME")+"/.local/papers/2017", "set docs dir")
+	xdocFile  = flag.String("xdoc", os.Getenv("HOME")+"/.local/xdoc/papers-2017.xdoc", "set xdoc file")
+	xindexFile = flag.String("xindex", os.Getenv("HOME")+"/.local/xdoc/index-2017.xdoc", "set xindex file")
 	xpassFile = flag.String("xpass", os.Getenv("HOME")+"/.local/xdoc/pass.xdoc", "set xpass file")
 )
 
@@ -61,7 +64,7 @@ func generateRandomBytes(n int) ([]byte, error) {
 	return b, nil
 }
 
-type chunkHeader struct {
+type Header struct {
 	Path    string
 	Size    int64
 	Mode    os.FileMode
@@ -69,7 +72,7 @@ type chunkHeader struct {
 }
 
 func writeHeaderChunk(w io.Writer, info os.FileInfo, relpath string) {
-	header := chunkHeader{
+	header := Header{
 		Path:    relpath,
 		Size:    info.Size(),
 		Mode:    info.Mode(),
@@ -145,14 +148,14 @@ func prompt(keys []openpgp.Key, symmetric bool) ([]byte, error) {
 	return key, nil
 }
 
-func readHeaderChunk(r io.Reader) (chunkHeader, error) {
+func readHeaderChunk(r io.Reader) (Header, error) {
 	var chunkLen int64
 	var n int
 
 	// read header size
 	err := binary.Read(r, binary.LittleEndian, &chunkLen)
 	if err != nil {
-		return chunkHeader{}, err
+		return Header{}, err
 	}
 
 	// read header
@@ -166,7 +169,7 @@ func readHeaderChunk(r io.Reader) (chunkHeader, error) {
 	br := bytes.NewReader(buf)
 	dec := gob.NewDecoder(br)
 
-	var header chunkHeader
+	var header Header
 	err = dec.Decode(&header)
 	if err != nil {
 		panic(err)
@@ -175,12 +178,12 @@ func readHeaderChunk(r io.Reader) (chunkHeader, error) {
 	return header, nil
 }
 
-func readFileChunk(r io.Reader, dst string) {
+func readFileChunk(r io.Reader, dst string) error {
 	var chunkLen int64
 
 	err := binary.Read(r, binary.LittleEndian, &chunkLen)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	outf := ioutil.Discard
@@ -198,6 +201,180 @@ func readFileChunk(r io.Reader, dst string) {
 	if int64(written) != chunkLen {
 		println(written, chunkLen)
 		panic(err)
+	}
+
+	return nil
+}
+
+type DecrypterReader struct {
+	f *os.File
+	decrypter io.Reader
+}
+
+func NewDecrypterReader(fname string) *DecrypterReader {
+	f, err := os.Open(fname)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	md, err := openpgp.ReadMessage(f, nil, prompt, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &DecrypterReader{
+		f: f,
+		decrypter: md.LiteralData.Body,
+	}
+}
+
+func (xr *DecrypterReader) Close() error {
+	return xr.f.Close()
+}
+
+func (dr *DecrypterReader) Read(p []byte) (n int, err error) {
+	return dr.decrypter.Read(p)
+}
+
+
+type Reader struct {
+	f *os.File
+	decrypter io.Reader
+	header *Header // current header
+	chunkWasRead bool // file chunk was read
+}
+
+func NewReader(fname string) *Reader {
+	f, err := os.Open(fname)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	md, err := openpgp.ReadMessage(f, nil, prompt, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &Reader{
+		f: f,
+		decrypter: md.LiteralData.Body,
+	}
+}
+
+func (xr *Reader) Next() (*Header, error) {
+	if xr.header != nil && !xr.chunkWasRead && !xr.header.Mode.IsDir() {
+		err := xr.SaveFile("") // skip file chunk
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	header, err := readHeaderChunk(xr.decrypter)
+	if err == io.EOF {
+		return nil, err
+	}
+	xr.chunkWasRead = false
+	xr.header = &header
+	return &header, nil
+}
+
+func (xr *Reader) SaveFile(dst string) error {
+	if xr.chunkWasRead {
+		return fmt.Errorf("already read")
+	}
+	err := readFileChunk(xr.decrypter, dst)
+	if err != nil {
+		return err
+	}
+	xr.chunkWasRead = true
+	return nil
+}
+
+func (xr *Reader) Close() error {
+	return xr.f.Close()
+}
+
+type EncrypterWriter struct {
+	f *os.File
+	encrypter io.WriteCloser
+}
+
+func NewEncrypterWriter(fname string) *EncrypterWriter {
+	f, err := os.Create(fname)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	hints := &openpgp.FileHints{
+		IsBinary: true,
+		FileName: fname,
+		ModTime:  time.Now().UTC(),
+	}
+
+	config := &packet.Config{}
+	config.DefaultCipher = packet.CipherAES256
+	config.DefaultCompressionAlgo = packet.CompressionNone
+	encrypter, err = openpgp.SymmetricallyEncrypt(f, key, hints, config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &EncrypterWriter {
+		f: f,
+		encrypter: encrypter,
+	}
+}
+
+func (ew *EncrypterWriter) Close() error {
+	ew.encrypter.Close()
+	return ew.f.Close()
+}
+
+func (ew *EncrypterWriter) Write(p []byte) (n int, err error) {
+	return ew.encrypter.Write(p)
+}
+
+func createXdocIndex() {
+	log.Println("INFO", "create index", *xindexFile)
+	ew := NewEncrypterWriter(*xindexFile)
+	xr := NewReader(*xdocFile)
+	defer xr.Close()
+	defer ew.Close()
+
+	enc := gob.NewEncoder(ew)
+
+	for {
+		header, err := xr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err  != nil {
+			log.Fatal(err)
+		}
+		err = enc.Encode(header)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(header.Path)
+	}
+}
+
+func readXdocIndex() {
+	dr := NewDecrypterReader(*xindexFile)
+	defer dr.Close()
+
+	dec := gob.NewDecoder(dr)
+
+	for {
+		var header Header
+		err := dec.Decode(&header)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(header.Path)
 	}
 }
 
@@ -269,11 +446,11 @@ func scanXdocFile() {
 }
 
 func createSymmetricKey() {
-	salt, err := generateRandomBytes(32)
+	salt, err := generateRandomBytes(64)
 	if err != nil {
 		panic(err)
 	}
-	dk := pbkdf2.Key([]byte(*createKey), salt, 4096, 32, sha256.New)
+	dk := pbkdf2.Key([]byte(*createKey), salt, 8192, 64, sha256.New)
 	err = ioutil.WriteFile(saltFname, salt, 0400)
 	if err != nil {
 		panic(err)
@@ -345,8 +522,9 @@ func encryptDocsDir() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer encrypter.Close()
+
 	defer f.Close()
+	defer encrypter.Close()
 
 	err = filepath.Walk(*docsDir, walkFn)
 	if err != nil {
@@ -536,6 +714,16 @@ func main() {
 
 	if *encryptDocs {
 		encryptDocsDir()
+		return
+	}
+
+	if *createIndex {
+		createXdocIndex()
+		return
+	}
+
+	if *readIndex {
+		readXdocIndex()
 		return
 	}
 
