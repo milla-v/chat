@@ -34,15 +34,16 @@ var (
 	readIndex = flag.Bool("index-read", false, "dump xdoc index")
 
 	editPasswords = flag.Bool("e", false, "edit password file")
-	findPassword  = flag.Bool("p", false, "find password")
 
-	docsDir   = flag.String("docs", os.Getenv("HOME")+"/.local/papers/2017", "set docs dir")
-	xdocFile  = flag.String("xdoc", os.Getenv("HOME")+"/.local/xdoc/papers-2017.xdoc", "set xdoc file")
-	xindexFile = flag.String("xindex", os.Getenv("HOME")+"/.local/xdoc/index-2017.xdoc", "set xindex file")
+	year  = flag.Int("year", 2017, "set current year")
+
 	xpassFile = flag.String("xpass", os.Getenv("HOME")+"/.local/xdoc/pass.xdoc", "set xpass file")
 )
 
 var (
+	docsDir string
+	xdocFile string
+	xindexFile  string
 	keyFname   = os.Getenv("HOME") + "/.config/xdoc/key"
 	saltFname  = os.Getenv("HOME") + "/.config/xdoc/salt"
 	key        []byte
@@ -117,12 +118,12 @@ func walkFn(path string, info os.FileInfo, err error) error {
 		return err
 	}
 
-	relpath, err := filepath.Rel(*docsDir, path)
+	relpath, err := filepath.Rel(docsDir, path)
 	if err != nil {
 		return err
 	}
 
-	relpath = filepath.Join(filepath.Base(*docsDir), relpath)
+	relpath = filepath.Join(filepath.Base(docsDir), relpath)
 
 	if info.IsDir() {
 		relpath += "/"
@@ -332,9 +333,9 @@ func (ew *EncrypterWriter) Write(p []byte) (n int, err error) {
 }
 
 func createXdocIndex() {
-	log.Println("INFO", "create index", *xindexFile)
-	ew := NewEncrypterWriter(*xindexFile)
-	xr := NewReader(*xdocFile)
+	log.Println("INFO", "create index", xindexFile)
+	ew := NewEncrypterWriter(xindexFile)
+	xr := NewReader(xdocFile)
 	defer xr.Close()
 	defer ew.Close()
 
@@ -357,7 +358,7 @@ func createXdocIndex() {
 }
 
 func readXdocIndex() {
-	dr := NewDecrypterReader(*xindexFile)
+	dr := NewDecrypterReader(xindexFile)
 	defer dr.Close()
 
 	dec := gob.NewDecoder(dr)
@@ -375,12 +376,19 @@ func readXdocIndex() {
 	}
 }
 
-func createSymmetricKey() {
+func createSymmetricKey(password string) {
+	if _, err := os.Stat(saltFname); !os.IsNotExist(err) {
+		panic("salt exists: " + saltFname)
+	}
+	if _, err := os.Stat(keyFname); !os.IsNotExist(err) {
+		panic("key exists: " + keyFname)
+	}
+
 	salt, err := generateRandomBytes(64)
 	if err != nil {
 		panic(err)
 	}
-	dk := pbkdf2.Key([]byte(*createKey), salt, 8192, 64, sha256.New)
+	dk := pbkdf2.Key([]byte(password), salt, 8192, 64, sha256.New)
 	err = ioutil.WriteFile(saltFname, salt, 0400)
 	if err != nil {
 		panic(err)
@@ -395,6 +403,9 @@ func createSymmetricKey() {
 }
 
 func restoreSymmetricKey(saltAndPassword string) {
+	if _, err := os.Stat(keyFname); !os.IsNotExist(err) {
+		panic("key exists: " + keyFname)
+	}
 	saltPwd := strings.Split(saltAndPassword, ",")
 	saltFile := saltPwd[0]
 	salt, err := ioutil.ReadFile(saltFile)
@@ -434,14 +445,14 @@ func checkSymmetricKey(password string) {
 }
 
 func encryptDocsDir() {
-	f, err := os.Create(*xdocFile)
+	f, err := os.Create(xdocFile)
 	if err != nil {
 		panic(err)
 	}
 
 	hints := &openpgp.FileHints{
 		IsBinary: true,
-		FileName: *xdocFile,
+		FileName: xdocFile,
 		ModTime:  time.Now().UTC(),
 	}
 
@@ -456,7 +467,7 @@ func encryptDocsDir() {
 	defer f.Close()
 	defer encrypter.Close()
 
-	err = filepath.Walk(*docsDir, walkFn)
+	err = filepath.Walk(docsDir, walkFn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -464,8 +475,9 @@ func encryptDocsDir() {
 }
 
 func printEffectiveConfig() {
-	fmt.Println("docsDir:", *docsDir)
-	fmt.Println("xdocFile:", *xdocFile)
+	fmt.Println("docsDir:", docsDir)
+	fmt.Println("xdocFile:", xdocFile)
+	fmt.Println("xindexFile:", xindexFile)
 	fmt.Println("xpassFile:", *xpassFile)
 	fmt.Println("keyFname:", keyFname)
 	fmt.Println("saltFname:", saltFname)
@@ -611,13 +623,18 @@ func runPasswordEditor() {
 func main() {
 	flag.Parse()
 
+	home := os.Getenv("HOME")
+	docsDir = fmt.Sprintf("%s/.local/papers/%d", home, *year)
+	xdocFile  = fmt.Sprintf("%s/.local/xdoc/papers-%d.xdoc", home, *year)
+	xindexFile = fmt.Sprintf("%s/.local/xdoc/index-%d.xdoc", home, *year)
+
 	if *printConfig {
 		printEffectiveConfig()
 		return
 	}
 
 	if *createKey != "" {
-		createSymmetricKey()
+		createSymmetricKey(*createKey)
 		return
 	}
 
