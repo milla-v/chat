@@ -30,9 +30,6 @@ var (
 
 	printConfig = flag.Bool("g", false, "print effective config")
 	encryptDocs = flag.Bool("c", false, "encrypt docs dir into xdoc file")
-	openDoc     = flag.String("o", "", "open document from xdoc by matching `regex`")
-	listDocs    = flag.Bool("t", false, "list all entries in xdoc file")
-	extractDocs = flag.Bool("x", false, "extract xdoc file info docs dir")
 	createIndex = flag.Bool("index", false, "create index from xdoc file")
 	readIndex = flag.Bool("index-read", false, "dump xdoc index")
 
@@ -378,73 +375,6 @@ func readXdocIndex() {
 	}
 }
 
-func scanXdocFile() {
-
-	encryptedFile, err := os.Open(*xdocFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	md, err := openpgp.ReadMessage(encryptedFile, nil, prompt, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	decrypter := md.LiteralData.Body
-
-	for {
-		header, err := readHeaderChunk(decrypter)
-		if err == io.EOF {
-			break
-		}
-
-		if header.Mode.IsDir() {
-			if *openDoc == "" {
-				fmt.Println("---\n" + header.Path)
-			}
-
-			if *extractDocs {
-				dirpath := filepath.Join(filepath.Dir(*docsDir), header.Path)
-				fmt.Println("creating dir", dirpath)
-				if err = os.MkdirAll(dirpath, 0700); err != nil {
-					panic(err)
-				}
-			}
-			continue
-		}
-
-		open := false
-
-		if *openDoc != "" {
-			if strings.Contains(header.Path, *openDoc) {
-				fmt.Println(header.Path)
-				open = true
-			}
-		} else {
-			fmt.Println(header.Path)
-		}
-
-		dst := ""
-		if open {
-			dst = filepath.Join(os.TempDir(), "xdoc-"+filepath.Base(header.Path))
-		} else if *extractDocs {
-			dst = filepath.Join(filepath.Dir(*docsDir), header.Path)
-			fmt.Println("extracting to", dst)
-		}
-
-		readFileChunk(decrypter, dst)
-
-		if open {
-			cmd := exec.Command("xpdf", dst)
-			err = cmd.Run()
-			if err != nil {
-				panic(err)
-			}
-			return
-		}
-	}
-}
-
 func createSymmetricKey() {
 	salt, err := generateRandomBytes(64)
 	if err != nil {
@@ -724,11 +654,6 @@ func main() {
 
 	if *readIndex {
 		readXdocIndex()
-		return
-	}
-
-	if *listDocs || *openDoc != "" || *extractDocs {
-		scanXdocFile()
 		return
 	}
 
