@@ -499,14 +499,14 @@ func createFileServer() http.HandlerFunc {
 	f := func(w http.ResponseWriter, r *http.Request) {
 
 		if r.URL.Path != "/login.html" {
-			cookie, err := r.Cookie("token")
+			token, err := getToken(r)
 			if err == http.ErrNoCookie {
 				http.Redirect(w, r, "/login.html", http.StatusFound)
 				log.Println("redirect to /login.html")
 				return
 			}
 
-			_, err = auth.GetAuthUser(cookie.Value)
+			_, err = auth.GetAuthUser(token)
 			if err != nil {
 				http.Redirect(w, r, "/login.html", http.StatusFound)
 				log.Println("redirect unknown user to /login.html")

@@ -260,3 +260,50 @@ func (c *Client) SendFile(fname string) error {
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	return c.sendRequest(req)
 }
+
+// DownloadFile gets a file from the chat.
+func (c *Client) DownloadFile(fname string) error {
+	url := "https://" + c.cfg.Address + "/" + fname
+	log.Println("get file", url)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Println("cannot create request to ", url, err)
+		return err
+	}
+
+	token, err := c.login()
+	if err == ErrInvalidCredentials {
+		return err
+	}
+
+	req.Header.Add("Token", token)
+
+	client := c.newHTTPClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("get file:", err)
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(os.Stderr, resp.Body)
+		log.Println("http Status", resp.Status)
+		return errors.New("status: " + resp.Status)
+	}
+
+	f, err := os.Create(fname)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	written, err := io.Copy(f, resp.Body)
+	if err != nil {
+		return err
+	}
+	log.Println("downloaded", written, "bytes")
+	return nil
+
+}
