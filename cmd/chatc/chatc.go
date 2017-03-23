@@ -31,9 +31,10 @@ import (
 	"github.com/milla-v/chat/client"
 )
 
-var debug = flag.Bool("d", false, "log debug output into ~/.cache/chatc/debug.log")
+var debug = flag.Bool("debug", false, "log debug output into ~/.cache/chatc/debug.log")
 var useConfig = flag.String("c", "", "set config")
 var sendFile = flag.String("f", "", "file to send to the chat")
+var getFile = flag.String("d", "", "download a file from chat")
 var sendText = flag.String("t", "", "text to send to the chat")
 var printConfig = flag.Bool("g", false, "print config")
 
@@ -69,15 +70,20 @@ func main() {
 		if err := cli.SendText(*sendText); err != nil {
 			panic(err)
 		}
+		return
 	}
 
 	if *sendFile != "" {
 		if err := cli.SendFile(*sendFile); err != nil {
 			panic(err)
 		}
+		return
 	}
 
-	if *sendText != "" || *sendFile != "" {
+	if *getFile != "" {
+		if err := cli.DownloadFile(*getFile); err != nil {
+			panic(err)
+		}
 		return
 	}
 
