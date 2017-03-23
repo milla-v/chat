@@ -17,6 +17,7 @@ p {text-indent: 3%; }
 p.noindent { text-indent: 0%; }
 .smallcaps { font-variant: small-caps; }
 .ts { color: gray; font-size: small; }
+pre { margin-left: 6%; background-color: #EEEEEE; padding: 4px 4px 4px 4px; }
 </style>
 <script>
 
@@ -73,7 +74,7 @@ function ws_onmessage(e)
 		e.ping.pong = e.ping.ping;
 		ws.send(JSON.stringify(e));
 	} else if (e.roster != null){
-		msglog.innerHTML += e.roster.html;
+		roster.innerHTML = e.roster.html;
 	} else if (e.message != null){
 		if (e.message.notification.length > 0) {
 			notify(e.message.notification);
@@ -198,6 +199,7 @@ function sendFile() {
 <div>
 	<a target="chaturls" href="/history.html">history</a>
 	<a href="/login.html">relogin</a>
+	<span id="roster">nobody in the room</span>
 </div>
 </body>
 </html>
