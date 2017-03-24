@@ -250,12 +250,12 @@ func pingClients() {
 			continue
 		}
 
-		if time.Since(cli.lastPongTime) < time.Second*60 {
+		if time.Since(cli.lastPongTime) < time.Second*480 {
 			log.Printf("recent pong: %s\n", cli.ua.Name)
 			continue
 		}
 
-		if time.Since(cli.lastPongTime) > time.Second*180 {
+		if time.Since(cli.lastPongTime) > time.Second*720 {
 			log.Printf("no pong for 180 sec, disconnecting %s", cli.ua.Name)
 			disconnectChan <- cli
 			continue
