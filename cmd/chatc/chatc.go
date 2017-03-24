@@ -6,7 +6,7 @@
 //
 // The flags are:
 //	-c FILENAME -- specify config file
-//  -d          -- enable debug log
+//	-d          -- enable debug log
 //
 // Command runs simple chat listener.
 //
@@ -19,6 +19,7 @@
 //
 //	-t "TEXT"   -- Send plain text
 //	-f FILENAME -- Send file as an attachment
+//	-d FILENAME -- Download file from chat
 //
 package main
 
