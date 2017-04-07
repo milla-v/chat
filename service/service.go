@@ -107,7 +107,7 @@ func clientRoutine(cli *client) {
 			log.Printf("ws msg. user: %s, text: %s", cli.ua.Name, e.Message.Text)
 			cli.lastMessageTime = time.Now()
 			cli.lastPongTime = cli.lastMessageTime
-			text := html.EscapeString(e.Message.Text)
+			text := html.EscapeString(strings.TrimSpace(e.Message.Text))
 			broadcastChan <- &message{cli, nil, text, ""}
 			continue
 		}
