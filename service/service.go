@@ -486,6 +486,10 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 	broadcastChan <- m
 }
 
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "version: %s\ndate: %s\n", version, date)
+}
+
 func createFileServer() http.HandlerFunc {
 	generatePages()
 	dir := http.Dir(cfg.WorkDir)
@@ -677,9 +681,10 @@ func Run() {
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/register", auth.RegisterHandler)
 	http.HandleFunc("/create", auth.CreateHandler)
+	http.HandleFunc("/ver", versionHandler)
 
 	go workerRoutine()
 
-	err = http.ListenAndServeTLS(cfg.Address, cfg.WorkDir+"server.pem", cfg.WorkDir+"server.key", nil)
+	err = http.ListenAndServeTLS(":8085", cfg.WorkDir+"server.pem", cfg.WorkDir+"server.key", nil)
 	log.Fatal(err)
 }

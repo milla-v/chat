@@ -12,10 +12,10 @@
 //
 // Sending messages
 //
-// To send a message or a file into chat use the same program from other terminal with
-// additional flags.
+// To send a message or a file into chat or get a file from chat use the same program
+// from other terminal with additional flags.
 //
-// Send flags:
+// Flags:
 //
 //	-t "TEXT"   -- Send plain text
 //	-f FILENAME -- Send file as an attachment
