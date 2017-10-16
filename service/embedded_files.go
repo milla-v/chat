@@ -201,6 +201,7 @@ function sendFile() {
 <div>
 	<a target="chaturls" href="/history.html">history</a>
 	<a href="/login.html">relogin</a>
+	<button onclick="toggleSendFile()">File...</button>
 	<span id="roster">nobody in the room</span>
 </div>
 </body>

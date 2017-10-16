@@ -64,13 +64,13 @@ var (
 )
 
 const helpText = `
-	/help   &mdash; print this help\n
-	/roster &mdash; refresh user list\n
-	f       &mdash; show/hide file send panel\n
-	n       &mdash; show/hide notifications\n
-	.       &mdash; answer yes\n
-	!       &mdash; answer YES!!!\n
-	,       &mdash; answer no\n
+	/help   &mdash; print this help
+	/roster &mdash; refresh user list
+	f       &mdash; show/hide file send panel
+	n       &mdash; show/hide notifications
+	.       &mdash; answer да
+	!       &mdash; answer ДА!!!
+	,       &mdash; answer нет
 	`
 
 // PrintVersion prints service version to the stdout.
@@ -183,11 +183,11 @@ func cutRunes(s string, n int) string {
 func autoreplaceText(s string) string {
 	switch s {
 	case ".":
-		return "yes"
+		return "да."
 	case ",":
-		return "no"
+		return "нет."
 	case "!":
-		return "YES!!!"
+		return "ДА!!!"
 	}
 	return s
 }
@@ -211,10 +211,10 @@ func sendToAllClients(from *client, text, label string) {
 	re := regexp.MustCompile("https?://[^ \n]+")
 	text = re.ReplaceAllString(text, "<a target=\"chaturls\" href=\"$0\">$0</a>")
 	if strings.Contains(text, "\n") {
-		text = "<pre>" + text + "</pre>"
+		text = "<pre>" + msg.Text + "</pre>"
 	}
 	capname := `<span class="smallcaps">` + strings.Title(from.ua.Name[:3]) + "</span>.\n"
-	msg.HTML = "<p>" + capname + text + ` <span class="ts">(` + now.Format("15:04") + ")</span></p>\n"
+	msg.HTML = "<p>" + capname + msg.Text + ` <span class="ts">(` + now.Format("15:04") + ")</span></p>\n"
 
 	for _, cli := range clients {
 		if cli.ws == nil || from == cli {

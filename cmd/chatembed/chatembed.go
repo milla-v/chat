@@ -34,4 +34,5 @@ func main() {
 	fmt.Fprintf(f, "indexHTML = `%s`\n\n", string(main))
 	fmt.Fprintf(f, "loginHTML = `%s`\n\n", string(toc))
 	fmt.Fprintln(f, ")")
+	fmt.Println("generated")
 }
