@@ -16,6 +16,7 @@ type ServiceConfig struct {
 	SMTPUser         string `json:"smtp_user"`
 	SMTPPasswordFile string `json:"smtp_password_file"`
 	PatchDir         string `json:"patch_dir"` // directory for received .patch files
+	Debug            bool   `json:"debug"`
 }
 
 // Config is loaded config.
@@ -53,4 +54,3 @@ func PrintConfig() {
 	//	enc.SetIndent("", "    ") // uncomment in go-1.7
 	enc.Encode(Config)
 }
-

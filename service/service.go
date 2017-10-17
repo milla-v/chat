@@ -96,7 +96,9 @@ func clientRoutine(cli *client) {
 
 		if e.Ping != nil && e.Ping.Ping > 0 {
 			if e.Ping.Pong >= e.Ping.Ping {
-				log.Printf("ws pong. user: %s, pong: %d", cli.ua.Name, e.Ping.Pong)
+				if cfg.Debug {
+					log.Printf("ws pong. user: %s, pong: %d", cli.ua.Name, e.Ping.Pong)
+				}
 				cli.lastPongTime = time.Now()
 				broadcastChan <- &message{cli, nil, "/roster", ""}
 			}
@@ -104,7 +106,9 @@ func clientRoutine(cli *client) {
 		}
 
 		if e.Message != nil {
-			log.Printf("ws msg. user: %s, text: %s", cli.ua.Name, e.Message.Text)
+			if cfg.Debug {
+				log.Printf("ws msg. user: %s, text: %s", cli.ua.Name, e.Message.Text)
+			}
 			cli.lastMessageTime = time.Now()
 			cli.lastPongTime = cli.lastMessageTime
 			text := html.EscapeString(strings.TrimSpace(e.Message.Text))
@@ -117,7 +121,9 @@ func clientRoutine(cli *client) {
 }
 
 func removeFromList(cli *client) {
-	log.Println("removing", cli.ua.Name, "remoteAddr:", cli.ws.Request().RemoteAddr)
+	if cfg.Debug {
+		log.Println("removing", cli.ua.Name, "remoteAddr:", cli.ws.Request().RemoteAddr)
+	}
 	for idx, c := range clients {
 		if c != cli {
 			continue
@@ -126,7 +132,9 @@ func removeFromList(cli *client) {
 		cli.ws.Close()
 		break
 	}
-	log.Printf("clients left: %d", len(clients))
+	if cfg.Debug {
+		log.Printf("clients left: %d", len(clients))
+	}
 }
 
 func findClient(token string) (*client, error) {
@@ -251,7 +259,9 @@ func pingClients() {
 		}
 
 		if time.Since(cli.lastPongTime) < time.Second*480 {
-			log.Printf("recent pong: %s\n", cli.ua.Name)
+			if cfg.Debug {
+				log.Printf("recent pong: %s\n", cli.ua.Name)
+			}
 			continue
 		}
 
@@ -271,7 +281,9 @@ func pingClients() {
 		if err != nil {
 			log.Println("send error:", err)
 		}
-		log.Printf("ping %s\n", cli.ua.Name)
+		if cfg.Debug {
+			log.Printf("ping %s\n", cli.ua.Name)
+		}
 	}
 }
 
@@ -306,7 +318,9 @@ func sendRoster(cli *client) {
 	e.Roster.Text = strings.Trim(e.Roster.Text, ", ")
 	e.Roster.HTML = "in room: " + e.Roster.Text
 
-	log.Printf("sending roster: %s", e.Roster.Text)
+	if cfg.Debug {
+		log.Printf("sending roster: %s", e.Roster.Text)
+	}
 
 	err := websocket.JSON.Send(cli.ws, &e)
 	if err != nil {
@@ -336,7 +350,9 @@ func connectClient(cli *client) {
 
 	var err error
 
-	log.Printf("websocket connection. remote addr: %s", cli.ws.Request().RemoteAddr)
+	if cfg.Debug {
+		log.Printf("websocket connection. remote addr: %s", cli.ws.Request().RemoteAddr)
+	}
 
 	token, err := getToken(cli.ws.Request())
 	if err != nil {
@@ -363,7 +379,9 @@ func connectClient(cli *client) {
 	newcli = &client{ua: ua, ws: cli.ws, lastPongTime: time.Now()}
 	clients = append(clients, newcli)
 	connectedChan <- newcli
-	log.Println("connect client. connected:", ua.Name)
+	if cfg.Debug {
+		log.Println("connect client. connected:", ua.Name)
+	}
 }
 
 func emailRecentHistory() {
@@ -480,7 +498,9 @@ func messageReceiver(w http.ResponseWriter, r *http.Request) {
 	}
 
 	text := html.EscapeString(string(body))
-	log.Println("message from", ua.Name, ":", text)
+	if cfg.Debug {
+		log.Println("message from", ua.Name, ":", text)
+	}
 
 	m := &message{cli, nil, text, ""}
 	broadcastChan <- m
@@ -513,7 +533,9 @@ func createFileServer() http.HandlerFunc {
 			}
 		}
 
-		log.Println("fileserver:", r.URL)
+		if cfg.Debug {
+			log.Println("fileserver:", r.URL)
+		}
 		fileserver.ServeHTTP(w, r)
 	}
 
@@ -599,7 +621,9 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%d bytes sent\n", written)
 
 		text := fmt.Sprintf("file: <a target=\"chaturls\" href=\"%s\">%s</a>", fname, part.FileName())
-		log.Println("upload: file from", ua.Name, fname)
+		if cfg.Debug {
+			log.Println("upload: file from", ua.Name, fname)
+		}
 		m := &message{&client{ua: ua}, nil, text, "file: " + fname}
 		broadcastChan <- m
 	}
@@ -628,7 +652,9 @@ func ensureCertificates() {
 	certExists := !os.IsNotExist(err)
 
 	if keyExists && certExists {
-		log.Println("key and cert exist")
+		if cfg.Debug {
+			log.Println("key and cert exist")
+		}
 		return
 	}
 
