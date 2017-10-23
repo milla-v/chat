@@ -15,6 +15,7 @@ import (
 type UserAuth struct {
 	Name     string
 	Password string
+	Email    string
 	Token    string // session token
 }
 
@@ -105,6 +106,7 @@ func loadUserProfileByToken(token string) (*UserAuth, error) {
 	ua := &UserAuth{
 		Name:     name,
 		Password: fields[1],
+		Email:    fields[2],
 		Token:    token,
 	}
 

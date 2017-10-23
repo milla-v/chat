@@ -51,6 +51,6 @@ func PrintConfig() {
 	fmt.Println("config file:", configFile)
 	fmt.Println("loaded config:")
 	enc := json.NewEncoder(os.Stdout)
-	//	enc.SetIndent("", "    ") // uncomment in go-1.7
+	enc.SetIndent("", "    ") // uncomment in go-1.7
 	enc.Encode(Config)
 }

@@ -146,6 +146,15 @@ func findClient(token string) (*client, error) {
 	return nil, http.ErrNoCookie
 }
 
+func findClientByEmail(email string) (*client, error) {
+	for _, c := range clients {
+		if c.ua.Email == email {
+			return c, nil
+		}
+	}
+	return nil, http.ErrNoCookie
+}
+
 func onWebsocketConnection(ws *websocket.Conn) {
 	cli := &client{ws: ws}
 	connectChan <- cli
@@ -387,6 +396,10 @@ func connectClient(cli *client) {
 func emailRecentHistory() {
 	if len(recentHistory) == 0 {
 		return
+	}
+
+	if _, err := findClientByEmail(cfg.AdminEmail); err == nil {
+		return // do not send if admin is online
 	}
 
 	var b bytes.Buffer
