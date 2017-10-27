@@ -10,6 +10,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/milla-v/chat/config"
 	"github.com/milla-v/chat/service"
@@ -18,11 +19,12 @@ import (
 var useConfig = flag.String("c", "", "Specify config file")
 var printConfig = flag.Bool("g", false, "Print config file")
 var printVersion = flag.Bool("v", false, "Print version")
+var version string
 
 func main() {
 	flag.Parse()
 	if *printVersion {
-		service.PrintVersion()
+		fmt.Println("version:", version)
 		return
 	}
 
@@ -35,4 +37,3 @@ func main() {
 
 	service.Run()
 }
-
