@@ -82,6 +82,11 @@ func PrintVersion() {
 func clientRoutine(cli *client) {
 	broadcastChan <- &message{cli, nil, "/replay", ""}
 	broadcastChan <- &message{cli, nil, "/roster", ""}
+	log.Printf("client routine: %+v", cli)
+	if cli.ws != nil {
+		log.Printf("ws addr: %+v", cli.ws.Request().RemoteAddr)
+		log.Printf("ws ua: %+v", cli.ws.Request().UserAgent())
+	}
 
 	for {
 		var e prot.Envelope
@@ -422,7 +427,7 @@ func emailRecentHistory() {
 		log.Println("=== recent history ===")
 		log.Println(b.String())
 	} else {
-		auth.SendEmail(cfg.AdminEmail, b.String())
+		auth.SendEmail([]string{cfg.AdminEmail}, b.String())
 	}
 	recentHistory = ""
 }
