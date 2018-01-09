@@ -1,10 +1,10 @@
 set -x
 set -e
 
-git tag 1 | head
+git tag 2 | head
 VER=`git describe --tags --long`
 cd cmd/chatd
-go build -ldflags "-X service.Version=$VER"
+go build -ldflags "-X main.Version=$VER"
 cd -
 sudo service chatd stop | head
 sudo cp cmd/chatd/chatd /usr/local/www/wet/chatd

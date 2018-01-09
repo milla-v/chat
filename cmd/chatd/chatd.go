@@ -18,13 +18,15 @@ import (
 
 var useConfig = flag.String("c", "", "Specify config file")
 var printConfig = flag.Bool("g", false, "Print config file")
-var printVersion = flag.Bool("v", false, "Print version")
-var version string
+var printVersion = flag.Bool("version", false, "Print version")
+
+// Version is set by linker
+var Version string
 
 func main() {
 	flag.Parse()
 	if *printVersion {
-		fmt.Println("version:", version)
+		fmt.Println("version:", Version)
 		return
 	}
 
