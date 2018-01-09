@@ -82,15 +82,15 @@ func SendEmailBySendmail(to, text string) {
 
 // SendEmail sends email to admin using smtp.
 // TODO: move it to utils.
-func SendEmail(to, text string) {
+func SendEmail(to []string, text string) {
 	if cfg.AdminEmail == "" || cfg.SMTPUser == "" || cfg.SMTPPasswordFile == "" {
 		log.Println("smtp is not configured")
 		fmt.Println(text)
 		return
 	}
 
-	if to == "" {
-		to = cfg.AdminEmail
+	if len(to) == 0 {
+		to = append(to, cfg.AdminEmail)
 	}
 
 	buf, err := ioutil.ReadFile(cfg.SMTPPasswordFile)
@@ -102,7 +102,7 @@ func SendEmail(to, text string) {
 	password := string(bytes.TrimSpace(buf))
 	auth := smtp.PlainAuth("", cfg.SMTPUser, password, "smtp.gmail.com")
 
-	err = smtp.SendMail("smtp.gmail.com:587", auth, "chat conversations", []string{to}, []byte(text))
+	err = smtp.SendMail("smtp.gmail.com:587", auth, "chat", to, []byte(text))
 	if err != nil {
 		log.Println("cannot send smtp email", err)
 		return
@@ -153,14 +153,14 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(f, user, " ", email)
 	f.Close()
 
-	text := "To: " + email + "\n"
+	text := "To: chat@voilokov.com\n"
 	text += "Subject: chat account request\n\n"
 	text += "Re: " + user + " " + email + "\n\n"
 	text += "To create a new chat account clink the link below\n\n"
 	text += "https://" + cfg.Address + "/create?user=" + user + "&email=" + email + "&rt=" + registrationToken + "\n\n"
 	text += ".\n"
 
-	SendEmail(cfg.AdminEmail, text)
+	SendEmail([]string{"chat@voilokov.com", cfg.AdminEmail}, text)
 	fmt.Fprintln(w, "You will receive a confirmation email from administrator.")
 }
 
@@ -225,7 +225,7 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	text += "Follow this URL to log into chat:\n"
 	text += "https://" + cfg.Address + "/auth?user=" + user + "&password=" + password + "&redir=1\n\n"
 	text += ".\n"
-	SendEmail(cfg.AdminEmail, text)
+	SendEmail([]string{email, cfg.AdminEmail}, text)
 
 	w.Header().Add("Content-Type", "text/html")
 	fmt.Fprintln(w, "User "+user+" created. Password is "+password+"<br><br>\nClick link to login with these credentials.<br><br>\n")
