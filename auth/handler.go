@@ -1,17 +1,16 @@
 package auth
 
 import (
-	"bytes"
 	"encoding/base32"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/smtp"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/serge-v/toolbox/common"
 
 	"github.com/milla-v/chat/config"
 )
@@ -60,53 +59,6 @@ func AuthenticateHandler(w http.ResponseWriter, r *http.Request) {
 
 	// for console clients
 	w.Header().Add("Token", ua.Token)
-}
-
-// SendEmailBySendmail sends email to admin using sendmail.
-// TODO: move it to utils.
-func SendEmailBySendmail(to, text string) {
-	if len(cfg.AdminEmail) == 0 {
-		fmt.Println(text)
-		return
-	}
-
-	cmd := exec.Command("sendmail", "-f"+to, cfg.AdminEmail)
-	cmd.Stdin = strings.NewReader(text)
-	bytes, err := cmd.CombinedOutput()
-	log.Println("sendmail:", string(bytes))
-	if err != nil {
-		log.Println(err)
-		return
-	}
-}
-
-// SendEmail sends email to admin using smtp.
-// TODO: move it to utils.
-func SendEmail(to []string, text string) {
-	if cfg.AdminEmail == "" || cfg.SMTPUser == "" || cfg.SMTPPasswordFile == "" {
-		log.Println("smtp is not configured")
-		fmt.Println(text)
-		return
-	}
-
-	if len(to) == 0 {
-		to = append(to, cfg.AdminEmail)
-	}
-
-	buf, err := ioutil.ReadFile(cfg.SMTPPasswordFile)
-	if err != nil {
-		log.Println("cannot read smtp password file", err)
-		return
-	}
-
-	password := string(bytes.TrimSpace(buf))
-	auth := smtp.PlainAuth("", cfg.SMTPUser, password, "smtp.gmail.com")
-
-	err = smtp.SendMail("smtp.gmail.com:587", auth, "chat", to, []byte(text))
-	if err != nil {
-		log.Println("cannot send smtp email", err)
-		return
-	}
 }
 
 // RegisterHandler gets user and email parameters from request.
@@ -160,7 +112,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	text += "https://" + cfg.Address + "/create?user=" + user + "&email=" + email + "&rt=" + registrationToken + "\n\n"
 	text += ".\n"
 
-	SendEmail([]string{"chat@voilokov.com", cfg.AdminEmail}, text)
+	common.Sendmail(common.GetRcVar("MAILTO"), []byte(text))
 	fmt.Fprintln(w, "You will receive a confirmation email from administrator.")
 }
 
@@ -225,7 +177,7 @@ func CreateHandler(w http.ResponseWriter, r *http.Request) {
 	text += "Follow this URL to log into chat:\n"
 	text += "https://" + cfg.Address + "/auth?user=" + user + "&password=" + password + "&redir=1\n\n"
 	text += ".\n"
-	SendEmail([]string{email, cfg.AdminEmail}, text)
+	common.Sendmail(common.GetRcVar("MAILTO"), []byte(text))
 
 	w.Header().Add("Content-Type", "text/html")
 	fmt.Fprintln(w, "User "+user+" created. Password is "+password+"<br><br>\nClick link to login with these credentials.<br><br>\n")

@@ -10,20 +10,16 @@ import (
 
 // ServiceConfig is a chat service config.
 type ServiceConfig struct {
-	Address          string `json:"address"`
-	WorkDir          string `json:"work_dir"`
-	AdminEmail       string `json:"admin_email"`
-	SMTPUser         string `json:"smtp_user"`
-	SMTPPasswordFile string `json:"smtp_password_file"`
-	PatchDir         string `json:"patch_dir"` // directory for received .patch files
-	Debug            bool   `json:"debug"`
+	Address  string `json:"address"`
+	WorkDir  string `json:"work_dir"`
+	PatchDir string `json:"patch_dir"` // directory for received .patch files
+	Debug    bool   `json:"debug"`
 }
 
 // Config is loaded config.
 var Config = &ServiceConfig{
-	Address:    "localhost:8085",
-	WorkDir:    os.Getenv("HOME") + "/go/work/",
-	AdminEmail: "",
+	Address: "localhost:8085",
+	WorkDir: os.Getenv("HOME") + "/go/work/",
 }
 
 var configFile = "/usr/local/etc/chatd.json"
