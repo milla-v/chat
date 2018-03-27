@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/NYTimes/logrotate"
+  packages = ["."]
+  revision = "2b6e866fd507ff9d9b0c4246873004c650fb7aea"
+
+[[projects]]
   name = "github.com/pkg/errors"
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
@@ -17,13 +23,8 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = [
-    "cast5",
-    "openpgp",
-    "openpgp/armor",
-    "openpgp/elgamal",
-    "openpgp/errors",
-    "openpgp/packet",
-    "openpgp/s2k",
+    "acme",
+    "acme/autocert",
     "pbkdf2",
     "scrypt"
   ]
@@ -38,6 +39,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4ba19ca688c333bbbfe040941a7c33736f5bcdbeb50a862ccee9706254131141"
+  inputs-digest = "316796de88b29fb4942d9f469faa6ddfb3ad41f67e78d53d967c9187924c1692"
   solver-name = "gps-cdcl"
   solver-version = 1

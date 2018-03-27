@@ -12,14 +12,20 @@ import (
 type ServiceConfig struct {
 	Address  string `json:"address"`
 	WorkDir  string `json:"work_dir"`
-	PatchDir string `json:"patch_dir"` // directory for received .patch files
-	Debug    bool   `json:"debug"`
+	CertPath string
+	Debug    bool `json:"debug"`
+}
+
+func hostname() string {
+	name, _ := os.Hostname()
+	return name
 }
 
 // Config is loaded config.
 var Config = &ServiceConfig{
-	Address: "localhost:8085",
-	WorkDir: os.Getenv("HOME") + "/go/work/",
+	Address:  "wet." + hostname() + ":8085",
+	WorkDir:  "/usr/local/www/wet/work/",
+	CertPath: "/usr/local/etc/letsencrypt/golang-autocert",
 }
 
 var configFile = "/usr/local/etc/chatd.json"

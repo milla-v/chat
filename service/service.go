@@ -5,6 +5,7 @@ package service
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"html"
@@ -16,13 +17,14 @@ import (
 	"net/http"
 	"net/textproto"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/serge-v/toolbox/common"
+
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/websocket"
 
 	"github.com/milla-v/chat/auth"
@@ -58,8 +60,6 @@ var (
 	broadcastChan    chan *message   // channel to pass message to the worker
 	historyFile      *os.File        // file for saving all history
 	tenMinutesTicker = time.NewTicker(time.Minute * time.Duration(10))
-	certFile         = "server.pem"
-	keyFile          = "server.key"
 	cfg              = config.Config
 )
 
@@ -403,15 +403,12 @@ func emailRecentHistory() {
 		return
 	}
 
-	if _, err := findClientByEmail(cfg.AdminEmail); err == nil {
-		return // do not send if admin is online
-	}
-
 	var b bytes.Buffer
 
 	mwr := multipart.NewWriter(&b)
 
-	fmt.Fprintf(&b, "To: %s\n", cfg.AdminEmail)
+	to := common.GetRcVar("MAILTO1")
+	fmt.Fprintf(&b, "To: %s\n", to)
 	fmt.Fprintf(&b, "Subject: chat conversations\n")
 	fmt.Fprintf(&b, "Content-Type: multipart/mixed; boundary=%s\n\n", mwr.Boundary())
 	headers := make(textproto.MIMEHeader)
@@ -423,12 +420,7 @@ func emailRecentHistory() {
 	}
 	fmt.Fprintln(part, recentHistory)
 	fmt.Fprintf(&b, ".\n")
-	if len(cfg.AdminEmail) == 0 {
-		log.Println("=== recent history ===")
-		log.Println(b.String())
-	} else {
-		auth.SendEmail([]string{cfg.AdminEmail}, b.String())
-	}
+	common.Sendmail(to, b.Bytes())
 	recentHistory = ""
 }
 
@@ -616,19 +608,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		var wr io.Writer
 		wr = f
 
-		if filepath.Ext(fname) == ".patch" && cfg.PatchDir != "" {
-			patchFile := cfg.PatchDir + fname
-			pf, err1 := os.Create(patchFile)
-			if err1 != nil {
-				http.Error(w, "cannot create patch file", http.StatusBadRequest)
-				log.Println("upload: cannot create patch file.", err1)
-				return
-			}
-			wr = io.MultiWriter(f, pf)
-			defer pf.Close()
-			log.Println("saving patch to", patchFile)
-		}
-
 		written, err := io.Copy(wr, part)
 		if err != nil {
 			http.Error(w, "cannot copy file", http.StatusBadRequest)
@@ -648,63 +627,9 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body.Close()
 }
 
-func initWorkDir() {
-	_, err := os.Stat(cfg.WorkDir)
-	if !os.IsNotExist(err) {
-		return
-	}
-
-	if err := os.MkdirAll(cfg.WorkDir, 0777); err != nil {
-		panic(err)
-	}
-}
-
-func ensureCertificates() {
-	cfname := cfg.WorkDir + certFile
-	kfname := cfg.WorkDir + keyFile
-
-	_, err := os.Stat(kfname)
-	keyExists := !os.IsNotExist(err)
-
-	_, err = os.Stat(cfname)
-	certExists := !os.IsNotExist(err)
-
-	if keyExists && certExists {
-		if cfg.Debug {
-			log.Println("key and cert exist")
-		}
-		return
-	}
-
-	log.Println("generating", kfname)
-	cmd := exec.Command("openssl", "genrsa", "-out", kfname, "2048")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Println("generating key: ", string(out))
-		panic(err)
-	}
-	log.Println("key generated")
-
-	log.Println("generating", cfname)
-	cmd = exec.Command("openssl", "req", "-new", "-x509", "-sha256",
-		"-key", kfname, "-out", cfname,
-		"-days", "3650",
-		"-subj", "/CN=localhost/C=US/ST=NY/L=NYC/emailAddress="+cfg.AdminEmail)
-
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		log.Println("generating cert: ", string(out))
-		panic(err)
-	}
-	log.Println("cert generated")
-}
-
 // Run starts a chat http server on address (host:port)
 func Run() {
 	var err error
-
-	initWorkDir()
-	ensureCertificates()
 
 	log.Printf("chat version: %s, date: %s\n", version, date)
 	log.Println("starting server on https://" + cfg.Address + "/")
@@ -718,17 +643,31 @@ func Run() {
 		panic(err)
 	}
 
-	http.HandleFunc("/", createFileServer())
-	http.Handle("/ws", websocket.Handler(onWebsocketConnection))
-	http.HandleFunc("/m", messageReceiver)
-	http.HandleFunc("/auth", auth.AuthenticateHandler)
-	http.HandleFunc("/upload", uploadHandler)
-	http.HandleFunc("/register", auth.RegisterHandler)
-	http.HandleFunc("/create", auth.CreateHandler)
-	http.HandleFunc("/ver", versionHandler)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", createFileServer())
+	mux.Handle("/ws", websocket.Handler(onWebsocketConnection))
+	mux.HandleFunc("/m", messageReceiver)
+	mux.HandleFunc("/auth", auth.AuthenticateHandler)
+	mux.HandleFunc("/upload", uploadHandler)
+	mux.HandleFunc("/register", auth.RegisterHandler)
+	mux.HandleFunc("/create", auth.CreateHandler)
+	mux.HandleFunc("/ver", versionHandler)
 
 	go workerRoutine()
 
-	err = http.ListenAndServeTLS(":8085", cfg.WorkDir+"server.pem", cfg.WorkDir+"server.key", nil)
-	log.Fatal(err)
+	m := &autocert.Manager{
+		Cache:      autocert.DirCache(cfg.CertPath),
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist("mx.voilokov.com"),
+	}
+
+	s := &http.Server{
+		Addr:      ":8085",
+		TLSConfig: &tls.Config{GetCertificate: m.GetCertificate},
+		Handler:   mux,
+	}
+
+	log.Println("starting on :8085")
+	log.Fatal(s.ListenAndServeTLS("", ""))
 }
