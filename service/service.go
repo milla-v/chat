@@ -176,7 +176,11 @@ var colors = map[string]string{
 }
 
 func replayHistory(cli *client) {
-	for _, s := range history {
+	h := history
+	if len(h) > 100 {
+		h = h[len(h)-100:]
+	}
+	for _, s := range h {
 		err := websocket.JSON.Send(cli.ws, s)
 		if err != nil {
 			log.Println("send error:", err)
